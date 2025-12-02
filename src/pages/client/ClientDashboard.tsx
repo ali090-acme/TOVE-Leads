@@ -8,13 +8,9 @@ import {
   Button,
   List,
   ListItem,
-  ListItemText,
   Chip,
   Divider,
-  CircularProgress,
   Skeleton,
-  Paper,
-  Stack,
   Avatar,
 } from '@mui/material';
 import {
@@ -24,7 +20,6 @@ import {
   AccessTime as ClockIcon,
   Payment as PaymentIcon,
   Assignment as AssignmentIcon,
-  TrendingUp as TrendingUpIcon,
   CheckCircle as CheckCircleIcon,
   Schedule as ScheduleIcon,
   Download as DownloadIcon,
@@ -37,6 +32,7 @@ import { format } from 'date-fns';
 import { exportCertificateAsPDF, exportCertificateAsImage } from '@/utils/certificateExport';
 import { Menu, MenuItem, IconButton } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { Certificate } from '@/types';
 
 export const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -335,7 +331,7 @@ export const ClientDashboard: React.FC = () => {
             <CardContent sx={{ p: 3 }}>
               {expiringCertificates.length > 0 ? (
                 <List sx={{ p: 0 }}>
-                  {expiringCertificates.map((cert, index) => {
+                  {expiringCertificates.map((cert) => {
                     const daysUntilExpiry = Math.floor(
                       (cert.expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
                     );

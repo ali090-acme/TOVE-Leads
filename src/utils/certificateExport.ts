@@ -8,7 +8,8 @@ import { format } from 'date-fns';
 export const exportCertificateAsPDF = async (certificate: Certificate): Promise<void> => {
   try {
     // Dynamic import to avoid SSR issues
-    const { jsPDF } = await import('jspdf');
+    const jsPDFModule = await import('jspdf');
+    const jsPDF = jsPDFModule.default;
     const doc = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
@@ -198,7 +199,8 @@ const downloadImage = (dataUrl: string, filename: string): void => {
  */
 export const exportCertificatesBulk = async (certificates: Certificate[]): Promise<void> => {
   try {
-    const { jsPDF } = await import('jspdf');
+    const jsPDFModule = await import('jspdf');
+    const jsPDF = jsPDFModule.default;
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',

@@ -228,7 +228,7 @@ export const ProfileManagement: React.FC = () => {
       setSnackbar({
         open: true,
         message: 'No change history available.',
-        severity: 'info',
+        severity: 'success',
       });
       return;
     }
