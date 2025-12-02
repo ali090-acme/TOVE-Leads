@@ -12,6 +12,7 @@ import {
   Divider,
   Skeleton,
   Avatar,
+  Paper,
 } from '@mui/material';
 import {
   VerifiedUser as VerifyIcon,

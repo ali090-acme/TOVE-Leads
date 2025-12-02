@@ -71,7 +71,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   Go to Home
                 </Button>
               </Box>
-              {typeof process !== 'undefined' && process.env?.NODE_ENV === 'development' && this.state.error && (
+              {import.meta.env.DEV && this.state.error && (
                 <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.100', borderRadius: 1, textAlign: 'left' }}>
                   <Typography variant="caption" component="pre" sx={{ fontSize: '0.75rem', overflow: 'auto' }}>
                     {this.state.error.stack}
