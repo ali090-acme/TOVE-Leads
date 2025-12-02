@@ -332,7 +332,7 @@ export const ClientDashboard: React.FC = () => {
             <CardContent sx={{ p: 3 }}>
               {expiringCertificates.length > 0 ? (
                 <List sx={{ p: 0 }}>
-                  {expiringCertificates.map((cert) => {
+                  {expiringCertificates.map((cert, index) => {
                     const daysUntilExpiry = Math.floor(
                       (cert.expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
                     );
