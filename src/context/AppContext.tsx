@@ -37,6 +37,7 @@ interface AppContextType {
   renewCertificate: (certificateId: string, documents: File[], notes: string) => boolean;
   
   // Job Order actions
+  createJobOrder: (jobOrder: Omit<JobOrder, 'id' | 'createdAt' | 'updatedAt'>) => JobOrder | null;
   updateJobOrder: (jobOrderId: string, updates: Partial<JobOrder>) => boolean;
   submitJobOrderReport: (
     jobOrderId: string,
@@ -92,6 +93,26 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
     return mockJobOrders;
   });
+
+  // Create Job Order
+  const createJobOrder = (
+    jobOrderData: Omit<JobOrder, 'id' | 'createdAt' | 'updatedAt'>
+  ): JobOrder | null => {
+    try {
+      const newJobOrder: JobOrder = {
+        ...jobOrderData,
+        id: `JO-${new Date().getFullYear()}${String(jobOrders.length + 1).padStart(3, '0')}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      setJobOrders((prev) => [...prev, newJobOrder]);
+      return newJobOrder;
+    } catch (error) {
+      console.error('Error creating job order:', error);
+      return null;
+    }
+  };
 
   const [certificates, setCertificates] = useState<Certificate[]>(() => {
     const stored = localStorage.getItem('certificates');
@@ -449,6 +470,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setCurrentUser,
     verifyCertificate,
     renewCertificate,
+    createJobOrder,
     updateJobOrder,
     submitJobOrderReport,
     approveJobOrder,

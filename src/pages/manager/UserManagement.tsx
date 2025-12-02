@@ -59,21 +59,48 @@ export const UserManagement: React.FC = () => {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Box>
-          <Typography variant="h4" gutterBottom fontWeight={600}>
+          <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
             User Management
           </Typography>
           <Typography variant="body1" color="text.secondary">
             Manage user accounts, roles, and permissions
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />}>
+        <Button 
+          variant="contained" 
+          startIcon={<AddIcon />}
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            '&:hover': {
+              background: 'linear-gradient(135deg, #0e2c62 0%, #1a4288 100%)',
+            },
+          }}
+        >
           Add New User
         </Button>
       </Box>
 
-      <Card>
-        <CardContent>
-          <DataTable columns={columns} data={users} searchPlaceholder="Search by name, email, employee ID..." />
+      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          {users.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No Users Found
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Add users to get started.
+              </Typography>
+            </Box>
+          ) : (
+            <DataTable columns={columns} data={users} searchPlaceholder="Search by name, email, employee ID..." />
+          )}
         </CardContent>
       </Card>
     </Box>

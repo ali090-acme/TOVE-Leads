@@ -11,9 +11,12 @@ import {
   Tab,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useAppContext } from '@/context/AppContext';
+import { UserRole } from '@/types';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { users, setCurrentUser } = useAppContext();
   const [tabValue, setTabValue] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,12 +30,68 @@ export const Login: React.FC = () => {
     
     // Mock login - in real app, validate credentials
     if (tabValue === 0) {
-      // Client portal
-      navigate('/client');
+      // Client portal - find client user
+      const clientUser = users.find(u => u.roles.includes('client'));
+      if (clientUser) {
+        setCurrentUser({ ...clientUser, currentRole: 'client' });
+        navigate('/client');
+      } else {
+        navigate('/client');
+      }
     } else {
       // Internal portal - route based on role
       // For demo, going to inspector dashboard
-      navigate('/inspector');
+      const inspectorUser = users.find(u => u.roles.includes('inspector'));
+      if (inspectorUser) {
+        setCurrentUser({ ...inspectorUser, currentRole: 'inspector' });
+        navigate('/inspector');
+      } else {
+        navigate('/inspector');
+      }
+    }
+  };
+
+  const handleQuickLogin = (role: UserRole) => {
+    const user = users.find(u => u.roles.includes(role));
+    if (user) {
+      setCurrentUser({ ...user, currentRole: role });
+      
+      // Navigate based on role
+      switch (role) {
+        case 'client':
+          navigate('/client');
+          break;
+        case 'inspector':
+          navigate('/inspector');
+          break;
+        case 'trainer':
+          navigate('/trainer');
+          break;
+        case 'supervisor':
+          navigate('/supervisor');
+          break;
+        case 'accountant':
+          navigate('/accountant');
+          break;
+        case 'manager':
+        case 'gm':
+          navigate('/manager');
+          break;
+        default:
+          navigate('/client');
+      }
+    } else {
+      // Fallback navigation if user not found
+      const roleRoutes: Record<UserRole, string> = {
+        client: '/client',
+        inspector: '/inspector',
+        trainer: '/trainer',
+        supervisor: '/supervisor',
+        accountant: '/accountant',
+        manager: '/manager',
+        gm: '/manager',
+      };
+      navigate(roleRoutes[role] || '/client');
     }
   };
 
@@ -116,12 +175,24 @@ export const Login: React.FC = () => {
               Demo Quick Login:
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-              <Button size="small" onClick={() => navigate('/client')}>Client</Button>
-              <Button size="small" onClick={() => navigate('/inspector')}>Inspector</Button>
-              <Button size="small" onClick={() => navigate('/trainer')}>Trainer</Button>
-              <Button size="small" onClick={() => navigate('/supervisor')}>Supervisor</Button>
-              <Button size="small" onClick={() => navigate('/accountant')}>Accountant</Button>
-              <Button size="small" onClick={() => navigate('/manager')}>Manager</Button>
+              <Button size="small" variant="outlined" onClick={() => handleQuickLogin('client')}>
+                Client
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => handleQuickLogin('inspector')}>
+                Inspector
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => handleQuickLogin('trainer')}>
+                Trainer
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => handleQuickLogin('supervisor')}>
+                Supervisor
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => handleQuickLogin('accountant')}>
+                Accountant
+              </Button>
+              <Button size="small" variant="outlined" onClick={() => handleQuickLogin('manager')}>
+                Manager
+              </Button>
             </Box>
           </Box>
         </Paper>

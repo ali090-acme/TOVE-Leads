@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Grid, Card, CardContent, Alert, Button } from '@mui/material';
+import { Box, Typography, Grid, Card, CardContent, Alert, Button, Avatar } from '@mui/material';
 import {
   TrendingUp as RevenueIcon,
   Assignment as JobIcon,
@@ -84,48 +84,130 @@ export const ManagerDashboard: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom fontWeight={600}>
-        Manager Dashboard
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Company-wide analytics and strategic oversight
-      </Typography>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
+          Manager Dashboard
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Company-wide analytics and strategic oversight
+        </Typography>
+      </Box>
 
       {/* Quick Metrics */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={3}>
-          <StatsCard
-            title="Total Revenue"
-            value={`$${totalRevenue.toLocaleString()}`}
-            icon={<RevenueIcon />}
-            color="success.main"
-            subtitle="This month"
-          />
+          <Card
+            elevation={3}
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+              color: 'white',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                    Total Revenue
+                  </Typography>
+                  <Typography variant="h3" fontWeight={700}>
+                    ${totalRevenue.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8, mt: 0.5, display: 'block' }}>
+                    This month
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', width: 64, height: 64 }}>
+                  <RevenueIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
         <Grid item xs={12} md={3}>
-          <StatsCard
-            title="Active Job Orders"
-            value={mockJobOrders.length}
-            icon={<JobIcon />}
-            color="primary.main"
-          />
+          <Card
+            elevation={3}
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+              color: 'white',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                    Active Job Orders
+                  </Typography>
+                  <Typography variant="h3" fontWeight={700}>
+                    {mockJobOrders.length}
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', width: 64, height: 64 }}>
+                  <JobIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
         <Grid item xs={12} md={3}>
-          <StatsCard
-            title="Expiring Certificates"
-            value={expiringCertificates.length}
-            icon={<AlertIcon />}
-            color="warning.main"
-            subtitle="Next 90 days"
-          />
+          <Card
+            elevation={3}
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)',
+              color: 'white',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                    Expiring Certificates
+                  </Typography>
+                  <Typography variant="h3" fontWeight={700}>
+                    {expiringCertificates.length}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8, mt: 0.5, display: 'block' }}>
+                    Next 90 days
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', width: 64, height: 64 }}>
+                  <AlertIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
         <Grid item xs={12} md={3}>
-          <StatsCard
-            title="Critical Alerts"
-            value={criticalAlerts}
-            icon={<UsersIcon />}
-            color="error.main"
-          />
+          <Card
+            elevation={3}
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #c0392b 0%, #e74c3c 100%)',
+              color: 'white',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                    Critical Alerts
+                  </Typography>
+                  <Typography variant="h3" fontWeight={700}>
+                    {criticalAlerts}
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', width: 64, height: 64 }}>
+                  <UsersIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
 
@@ -149,9 +231,16 @@ export const ManagerDashboard: React.FC = () => {
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {/* Revenue Trend */}
         <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
+          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                color: 'white',
+                p: 2,
+              }}
+            />
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 1 }}>
                 Revenue Trend
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -179,9 +268,16 @@ export const ManagerDashboard: React.FC = () => {
 
         {/* Service Type Distribution */}
         <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
+          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                color: 'white',
+                p: 2,
+              }}
+            />
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 1 }}>
                 Jobs by Service Type
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -205,9 +301,16 @@ export const ManagerDashboard: React.FC = () => {
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {/* Jobs by Region */}
         <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
+          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                color: 'white',
+                p: 2,
+              }}
+            />
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 1 }}>
                 Jobs by Region
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -234,29 +337,46 @@ export const ManagerDashboard: React.FC = () => {
 
         {/* Quick Actions */}
         <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
+          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                color: 'white',
+                p: 2,
+              }}
+            />
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
                 Quick Actions
               </Typography>
-              <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid container spacing={2}>
                 <Grid item xs={12}>
-                  <Button variant="outlined" fullWidth href="/manager/certificates">
+                  <Button variant="outlined" fullWidth href="/manager/certificates" sx={{ py: 1.5 }}>
                     View All Certificates
                   </Button>
                 </Grid>
                 <Grid item xs={12}>
-                  <Button variant="outlined" fullWidth href="/manager/analytics">
+                  <Button variant="outlined" fullWidth href="/manager/analytics" sx={{ py: 1.5 }}>
                     Detailed Analytics
                   </Button>
                 </Grid>
                 <Grid item xs={12}>
-                  <Button variant="outlined" fullWidth href="/manager/users">
+                  <Button variant="outlined" fullWidth href="/manager/users" sx={{ py: 1.5 }}>
                     User Management
                   </Button>
                 </Grid>
                 <Grid item xs={12}>
-                  <Button variant="contained" fullWidth>
+                  <Button 
+                    variant="contained" 
+                    fullWidth
+                    sx={{
+                      py: 1.5,
+                      background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #0e2c62 0%, #1a4288 100%)',
+                      },
+                    }}
+                  >
                     Generate Reports
                   </Button>
                 </Grid>
@@ -267,9 +387,16 @@ export const ManagerDashboard: React.FC = () => {
       </Grid>
 
       {/* Certificate Expiry Report */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
+      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 1 }}>
             Certificate Expiry Report
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

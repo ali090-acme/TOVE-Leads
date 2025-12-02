@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Toolbar,
@@ -21,6 +22,7 @@ import {
   Menu as MenuIcon,
 } from '@mui/icons-material';
 import { UserRole } from '@/types';
+import { useAppContext } from '@/context/AppContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -49,6 +51,8 @@ export const Header: React.FC<HeaderProps> = ({
   userName,
   notificationCount = 0,
 }) => {
+  const navigate = useNavigate();
+  const { setCurrentUser } = useAppContext();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
 
@@ -69,8 +73,23 @@ export const Header: React.FC<HeaderProps> = ({
     onRoleChange(event.target.value as UserRole);
   };
 
+  const handleLogout = () => {
+    handleMenuClose();
+    // Clear current user
+    setCurrentUser(null);
+    // Navigate to login page
+    navigate('/login');
+  };
+
   return (
-    <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+    <AppBar 
+      position="fixed" 
+      sx={{ 
+        zIndex: (theme) => theme.zIndex.drawer + 1,
+        background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      }}
+    >
       <Toolbar>
         <IconButton
           color="inherit"
@@ -178,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Typography variant="body2">{userName}</Typography>
           </MenuItem>
           <MenuItem onClick={handleMenuClose}>Profile Settings</MenuItem>
-          <MenuItem onClick={handleMenuClose}>Logout</MenuItem>
+          <MenuItem onClick={handleLogout}>Logout</MenuItem>
         </Menu>
 
         {/* Notifications Menu */}

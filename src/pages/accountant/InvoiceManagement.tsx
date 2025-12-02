@@ -55,20 +55,40 @@ export const InvoiceManagement: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom fontWeight={600}>
-        Invoice Management
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Generate and manage invoices for completed services
-      </Typography>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
+          Invoice Management
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Generate and manage invoices for completed services
+        </Typography>
+      </Box>
 
-      <Card>
-        <CardContent>
-          <DataTable
-            columns={columns}
-            data={paidJobs}
-            searchPlaceholder="Search by Job ID, Client..."
-          />
+      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          {paidJobs.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No Paid Jobs Available
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Invoices can be generated once jobs are marked as paid.
+              </Typography>
+            </Box>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={paidJobs}
+              searchPlaceholder="Search by Job ID, Client..."
+            />
+          )}
         </CardContent>
       </Card>
     </Box>

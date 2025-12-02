@@ -1,10 +1,9 @@
 import React from 'react';
-import { Box, Typography, Grid, Card, CardContent } from '@mui/material';
+import { Box, Typography, Grid, Card, CardContent, Avatar } from '@mui/material';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { PieChart } from '@mui/x-charts/PieChart';
-import { StatsCard } from '@/components/common/StatsCard';
-import { TrendingUp as RevenueIcon } from '@mui/icons-material';
+import { TrendingUp as RevenueIcon, Assignment as JobIcon, People as PeopleIcon, TrendingUp as GrowthIcon } from '@mui/icons-material';
 
 export const Analytics: React.FC = () => {
   const revenueData = [
@@ -32,38 +31,138 @@ export const Analytics: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom fontWeight={600}>
-        Company Analytics
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Comprehensive performance metrics and business insights
-      </Typography>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
+          Company Analytics
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Comprehensive performance metrics and business insights
+        </Typography>
+      </Box>
 
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={3}>
-          <StatsCard
-            title="Total Revenue (YTD)"
-            value="$127K"
-            icon={<RevenueIcon />}
-            color="success.main"
-          />
+          <Card
+            elevation={3}
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+              color: 'white',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                    Total Revenue (YTD)
+                  </Typography>
+                  <Typography variant="h3" fontWeight={700}>
+                    $127K
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', width: 64, height: 64 }}>
+                  <RevenueIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
         <Grid item xs={12} md={3}>
-          <StatsCard title="Total Jobs" value="176" icon={<RevenueIcon />} color="primary.main" />
+          <Card
+            elevation={3}
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+              color: 'white',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                    Total Jobs
+                  </Typography>
+                  <Typography variant="h3" fontWeight={700}>
+                    176
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', width: 64, height: 64 }}>
+                  <JobIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
         <Grid item xs={12} md={3}>
-          <StatsCard title="Active Clients" value="42" icon={<RevenueIcon />} color="info.main" />
+          <Card
+            elevation={3}
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+              color: 'white',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                    Active Clients
+                  </Typography>
+                  <Typography variant="h3" fontWeight={700}>
+                    42
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', width: 64, height: 64 }}>
+                  <PeopleIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
         <Grid item xs={12} md={3}>
-          <StatsCard title="Growth Rate" value="+12%" icon={<RevenueIcon />} color="success.main" />
+          <Card
+            elevation={3}
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+              color: 'white',
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                    Growth Rate
+                  </Typography>
+                  <Typography variant="h3" fontWeight={700}>
+                    +12%
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', width: 64, height: 64 }}>
+                  <GrowthIcon sx={{ fontSize: 32 }} />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
+          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                color: 'white',
+                p: 2,
+              }}
+            />
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 1 }}>
                 Revenue Trend
               </Typography>
               <LineChart
@@ -78,9 +177,16 @@ export const Analytics: React.FC = () => {
         </Grid>
 
         <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
+          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                color: 'white',
+                p: 2,
+              }}
+            />
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 1 }}>
                 Service Distribution
               </Typography>
               <PieChart
@@ -92,9 +198,16 @@ export const Analytics: React.FC = () => {
         </Grid>
 
         <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom fontWeight={600}>
+          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                color: 'white',
+                p: 2,
+              }}
+            />
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 1 }}>
                 Jobs by Region
               </Typography>
               <BarChart

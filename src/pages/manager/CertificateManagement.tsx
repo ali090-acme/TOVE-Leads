@@ -59,20 +59,40 @@ export const CertificateManagement: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom fontWeight={600}>
-        Certificate Management
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        View, manage, and download all issued certificates
-      </Typography>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
+          Certificate Management
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          View, manage, and download all issued certificates
+        </Typography>
+      </Box>
 
-      <Card>
-        <CardContent>
-          <DataTable
-            columns={columns}
-            data={certificates}
-            searchPlaceholder="Search by certificate number, client..."
-          />
+      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          {certificates.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No Certificates Found
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Certificates will appear here once they are issued.
+              </Typography>
+            </Box>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={certificates}
+              searchPlaceholder="Search by certificate number, client..."
+            />
+          )}
         </CardContent>
       </Card>
     </Box>

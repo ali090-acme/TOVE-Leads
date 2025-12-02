@@ -79,7 +79,7 @@ export const ApprovalDetail: React.FC = () => {
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom fontWeight={600}>
+        <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
           Review Submission
         </Typography>
         <Typography variant="body1" color="text.secondary">
@@ -88,8 +88,15 @@ export const ApprovalDetail: React.FC = () => {
       </Box>
 
       {/* Job Order Header */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} md={3}>
               <Typography variant="body2" color="text.secondary">
@@ -136,9 +143,16 @@ export const ApprovalDetail: React.FC = () => {
       </Card>
 
       {/* Submission Details */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
             Inspection Details
           </Typography>
           <Divider sx={{ mb: 3 }} />
@@ -197,9 +211,16 @@ export const ApprovalDetail: React.FC = () => {
       </Card>
 
       {/* Photos */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
             Photo Documentation
           </Typography>
           <List>
@@ -213,9 +234,9 @@ export const ApprovalDetail: React.FC = () => {
       </Card>
 
       {/* Action Buttons */}
-      <Card>
-        <CardContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
+      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <CardContent sx={{ p: 4 }}>
+          <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
             Please review all submitted data carefully before taking action.
           </Alert>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -224,6 +245,7 @@ export const ApprovalDetail: React.FC = () => {
               color="error"
               startIcon={<RejectIcon />}
               onClick={() => setRejectDialogOpen(true)}
+              sx={{ px: 3 }}
             >
               Reject Report
             </Button>
@@ -232,10 +254,23 @@ export const ApprovalDetail: React.FC = () => {
               color="warning"
               startIcon={<ReviseIcon />}
               onClick={() => setReviseDialogOpen(true)}
+              sx={{ px: 3 }}
             >
               Request Revision
             </Button>
-            <Button variant="contained" color="success" startIcon={<ApproveIcon />} onClick={handleApprove}>
+            <Button 
+              variant="contained" 
+              color="success" 
+              startIcon={<ApproveIcon />} 
+              onClick={handleApprove}
+              sx={{
+                px: 4,
+                background: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0a3e4e 0%, #61a270 100%)',
+                },
+              }}
+            >
               Approve Report
             </Button>
           </Box>

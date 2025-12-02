@@ -24,21 +24,37 @@ export const TrainingSchedule: React.FC = () => {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Box>
-          <Typography variant="h4" gutterBottom fontWeight={600}>
+          <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
             Training Schedule
           </Typography>
           <Typography variant="body1" color="text.secondary">
             Manage your scheduled training sessions
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />}>
+        <Button 
+          variant="contained" 
+          startIcon={<AddIcon />}
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            '&:hover': {
+              background: 'linear-gradient(135deg, #0e2c62 0%, #1a4288 100%)',
+            },
+          }}
+        >
           Schedule New Session
         </Button>
       </Box>
 
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
+      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
             Upcoming Sessions
           </Typography>
           <List>

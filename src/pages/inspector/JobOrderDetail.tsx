@@ -158,7 +158,7 @@ export const JobOrderDetail: React.FC = () => {
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom fontWeight={600}>
+        <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
           Job Order Detail
         </Typography>
         <Typography variant="body1" color="text.secondary">
@@ -167,62 +167,75 @@ export const JobOrderDetail: React.FC = () => {
       </Box>
 
       {/* Job Order Header */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2}>
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Grid container spacing={3}>
             <Grid item xs={12} md={3}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                 Job ID
               </Typography>
-              <Typography variant="h6">{jobOrder.id}</Typography>
+              <Typography variant="h6" fontWeight={600}>{jobOrder.id}</Typography>
             </Grid>
             <Grid item xs={12} md={3}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                 Client
               </Typography>
-              <Typography variant="body1" fontWeight={500}>
+              <Typography variant="body1" fontWeight={600}>
                 {jobOrder.clientName}
               </Typography>
             </Grid>
             <Grid item xs={12} md={3}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                 Service Type
               </Typography>
-              <Typography variant="body1" fontWeight={500}>
+              <Typography variant="body1" fontWeight={600}>
                 {jobOrder.serviceType}
               </Typography>
             </Grid>
             <Grid item xs={12} md={3}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                 Status
               </Typography>
               {getStatusChip(jobOrder.status)}
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                 Scheduled Date
               </Typography>
-              <Typography variant="body1">
+              <Typography variant="body1" fontWeight={500}>
                 {format(jobOrder.dateTime, 'EEEE, MMMM dd, yyyy - hh:mm a')}
               </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                 Location
               </Typography>
-              <Typography variant="body1">{jobOrder.location}</Typography>
+              <Typography variant="body1" fontWeight={500}>{jobOrder.location}</Typography>
             </Grid>
           </Grid>
         </CardContent>
       </Card>
 
       {/* Inspection Checklist Form */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 3 }}>
             Inspection Checklist
           </Typography>
-          <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
             {/* Equipment Details Section */}
@@ -255,8 +268,8 @@ export const JobOrderDetail: React.FC = () => {
 
             {/* Inspection Questions */}
             <Grid item xs={12}>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+              <Divider sx={{ my: 3 }} />
+              <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ color: 'text.primary' }}>
                 Safety Checks
               </Typography>
             </Grid>
@@ -343,49 +356,83 @@ export const JobOrderDetail: React.FC = () => {
       </Card>
 
       {/* Photo Upload Section */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 1 }}>
             Photo Documentation
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Upload photos of the equipment, inspection points, and any defects found
           </Typography>
 
           <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-            <Button variant="outlined" component="label" startIcon={<UploadIcon />}>
+            <Button 
+              variant="outlined" 
+              component="label" 
+              startIcon={<UploadIcon />}
+              sx={{ px: 3 }}
+            >
               Upload Photos
               <input type="file" hidden multiple accept="image/*" onChange={handlePhotoUpload} />
             </Button>
-            <Button variant="outlined" component="label" startIcon={<CameraIcon />}>
+            <Button 
+              variant="outlined" 
+              component="label" 
+              startIcon={<CameraIcon />}
+              sx={{ px: 3 }}
+            >
               Take Photo
               <input type="file" hidden accept="image/*" capture="environment" onChange={handlePhotoUpload} />
             </Button>
           </Box>
 
           {photos.length > 0 && (
-            <List>
-              {photos.map((photo, index) => (
-                <ListItem
-                  key={index}
-                  secondaryAction={
-                    <IconButton edge="end" onClick={() => handleRemovePhoto(index)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  }
-                >
-                  <ListItemText primary={photo.name} secondary={`${(photo.size / 1024).toFixed(2)} KB`} />
-                </ListItem>
-              ))}
-            </List>
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Uploaded Photos ({photos.length})
+              </Typography>
+              <List sx={{ bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                {photos.map((photo, index) => (
+                  <ListItem
+                    key={index}
+                    sx={{ 
+                      borderBottom: index < photos.length - 1 ? '1px solid' : 'none',
+                      borderColor: 'divider',
+                    }}
+                    secondaryAction={
+                      <IconButton 
+                        edge="end" 
+                        onClick={() => handleRemovePhoto(index)}
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemText 
+                      primary={photo.name} 
+                      secondary={`${(photo.size / 1024).toFixed(2)} KB`}
+                      primaryTypographyProps={{ fontWeight: 500 }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
           )}
         </CardContent>
       </Card>
 
       {/* Action Buttons */}
-      <Card>
-        <CardContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
+      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <CardContent sx={{ p: 4 }}>
+          <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
             Please ensure all mandatory fields are completed before submitting for approval.
           </Alert>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
@@ -394,14 +441,23 @@ export const JobOrderDetail: React.FC = () => {
               startIcon={isSaving ? <CircularProgress size={20} /> : <SaveIcon />} 
               onClick={handleSaveDraft}
               disabled={isSaving || isSubmitting || jobOrder.status === 'Completed'}
+              sx={{ px: 3 }}
             >
               {isSaving ? 'Saving...' : 'Save Draft'}
             </Button>
             <Button 
               variant="contained" 
+              size="large"
               startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <SendIcon />} 
               onClick={handleSubmit}
               disabled={isSaving || isSubmitting || jobOrder.status === 'Completed'}
+              sx={{
+                px: 4,
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0e2c62 0%, #1a4288 100%)',
+                },
+              }}
             >
               {isSubmitting ? 'Submitting...' : 'Submit for Approval'}
             </Button>

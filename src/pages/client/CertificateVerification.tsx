@@ -11,16 +11,32 @@ import {
   Divider,
   Paper,
   CircularProgress,
+  Chip,
+  Stack,
+  InputAdornment,
+  Menu,
+  MenuItem,
+  IconButton,
 } from '@mui/material';
 import {
   QrCodeScanner as QrIcon,
   CheckCircle as ValidIcon,
   Error as InvalidIcon,
   Search as SearchIcon,
+  Verified as VerifiedIcon,
+  CalendarToday as CalendarIcon,
+  Person as PersonIcon,
+  Assignment as AssignmentIcon,
+  Security as SecurityIcon,
+  Download as DownloadIcon,
+  PictureAsPdf as PdfIcon,
+  Image as ImageIcon,
 } from '@mui/icons-material';
 import { useAppContext } from '@/context/AppContext';
 import { format } from 'date-fns';
 import { Certificate } from '@/types';
+import { QRScanner } from '@/components/common/QRScanner';
+import { exportCertificateAsPDF, exportCertificateAsImage } from '@/utils/certificateExport';
 
 export const CertificateVerification: React.FC = () => {
   const { verifyCertificate, certificates } = useAppContext();
@@ -32,6 +48,8 @@ export const CertificateVerification: React.FC = () => {
   } | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [qrScannerOpen, setQrScannerOpen] = useState(false);
+  const [downloadMenuAnchor, setDownloadMenuAnchor] = useState<HTMLElement | null>(null);
 
   const handleVerify = async () => {
     if (!certificateNumber.trim()) {
@@ -81,30 +99,78 @@ export const CertificateVerification: React.FC = () => {
   };
 
   const handleScan = () => {
-    // In a real app, this would trigger QR code scanner
-    alert('QR Code scanner would open here (camera access required)');
+    setQrScannerOpen(true);
+  };
+
+  const handleQRScanSuccess = (decodedText: string) => {
+    // Set the scanned text as certificate number
+    setCertificateNumber(decodedText);
+    setShowResult(false);
+    // Automatically verify after scanning (using the decoded text directly)
+    setIsVerifying(true);
+    setTimeout(() => {
+      const certificate = verifyCertificate(decodedText.trim());
+      if (certificate) {
+        const isExpired = certificate.status === 'Expired';
+        const daysUntilExpiry = Math.floor(
+          (certificate.expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+        );
+        let message = 'Certificate is valid';
+        if (isExpired) {
+          message = `Certificate expired on ${format(certificate.expiryDate, 'MMM dd, yyyy')}`;
+        } else if (daysUntilExpiry <= 30) {
+          message = `Certificate is valid but expires in ${daysUntilExpiry} days`;
+        }
+        setVerificationResult({
+          valid: !isExpired,
+          certificate: certificate,
+          message: message,
+        });
+      } else {
+        setVerificationResult({
+          valid: false,
+          message: 'Certificate not found. Please verify the certificate number and try again.',
+        });
+      }
+      setShowResult(true);
+      setIsVerifying(false);
+    }, 1000);
+  };
+
+  const handleQRScanError = (error: string) => {
+    console.error('QR Scan Error:', error);
+    // Error is handled by QRScanner component
   };
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom fontWeight={600}>
-        Certificate Verification
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Verify the authenticity and validity of a certificate
-      </Typography>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
+          Certificate Verification
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Verify the authenticity and validity of certificates using QR code scanning or manual entry
+        </Typography>
+      </Box>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={4} justifyContent="center">
         <Grid item xs={12} md={8} lg={6}>
-          <Card>
+          <Card elevation={2} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                color: 'white',
+                p: 3,
+              }}
+            >
+              <Typography variant="h5" fontWeight={600} gutterBottom>
+                Verify Certificate
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Enter certificate details or scan QR code to verify authenticity
+              </Typography>
+            </Box>
             <CardContent sx={{ p: 4 }}>
-              <Typography variant="h6" gutterBottom>
-                Enter Certificate Details
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Enter the certificate number or verification code to check its validity
-              </Typography>
-
               <TextField
                 fullWidth
                 label="Certificate Number or Verification Code"
@@ -118,9 +184,16 @@ export const CertificateVerification: React.FC = () => {
                 }}
                 disabled={isVerifying}
                 sx={{ mb: 3 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <VerifiedIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }}
               />
 
-              <Box sx={{ display: 'flex', gap: 2 }}>
+              <Stack spacing={2}>
                 <Button
                   variant="contained"
                   fullWidth
@@ -128,6 +201,13 @@ export const CertificateVerification: React.FC = () => {
                   startIcon={isVerifying ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
                   onClick={handleVerify}
                   disabled={isVerifying || !certificateNumber.trim()}
+                  sx={{
+                    py: 1.5,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #5568d3 0%, #653a8f 100%)',
+                    },
+                  }}
                 >
                   {isVerifying ? 'Verifying...' : 'Verify Certificate'}
                 </Button>
@@ -137,30 +217,30 @@ export const CertificateVerification: React.FC = () => {
                   size="large"
                   startIcon={<QrIcon />}
                   onClick={handleScan}
+                  sx={{ py: 1.5 }}
                 >
                   Scan QR Code
                 </Button>
-              </Box>
+              </Stack>
 
               {/* Demo helper */}
-              <Paper sx={{ mt: 3, p: 2, bgcolor: 'grey.50' }}>
-                <Typography variant="caption" color="text.secondary" gutterBottom display="block">
-                  Try these sample certificate numbers:
+              <Paper sx={{ mt: 4, p: 2.5, bgcolor: 'grey.50', borderRadius: 2 }}>
+                <Typography variant="caption" fontWeight={600} color="text.secondary" gutterBottom display="block">
+                  Quick Test:
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.5 }}>
                   {certificates.slice(0, 3).map((cert) => (
-                    <Button
+                    <Chip
                       key={cert.id}
-                      size="small"
-                      variant="text"
+                      label={cert.certificateNumber}
                       onClick={() => {
                         setCertificateNumber(cert.certificateNumber);
                         setShowResult(false);
                       }}
                       disabled={isVerifying}
-                    >
-                      {cert.certificateNumber}
-                    </Button>
+                      size="small"
+                      sx={{ cursor: 'pointer' }}
+                    />
                   ))}
                 </Box>
               </Paper>
@@ -171,105 +251,215 @@ export const CertificateVerification: React.FC = () => {
         {/* Verification Result */}
         {showResult && (
           <Grid item xs={12} md={8} lg={6}>
-            <Card>
-              <CardContent sx={{ p: 4 }}>
-                <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Card elevation={2} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+              <Box
+                sx={{
+                  background: verificationResult?.valid
+                    ? 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'
+                    : 'linear-gradient(135deg, #eb3349 0%, #f45c43 100%)',
+                  color: 'white',
+                  p: 3,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   {verificationResult?.valid ? (
-                    <>
-                      <ValidIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
-                      <Alert severity="success" sx={{ mb: 2 }}>
-                        <Typography variant="body1" fontWeight={500}>
-                          {verificationResult.message}
-                        </Typography>
-                      </Alert>
-                    </>
+                    <ValidIcon sx={{ fontSize: 48 }} />
                   ) : (
-                    <>
-                      <InvalidIcon sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
-                      <Alert severity="error" sx={{ mb: 2 }}>
-                        <Typography variant="body1" fontWeight={500}>
-                          {verificationResult?.message || 'Verification failed'}
-                        </Typography>
-                      </Alert>
-                    </>
+                    <InvalidIcon sx={{ fontSize: 48 }} />
                   )}
+                  <Box>
+                    <Typography variant="h5" fontWeight={600}>
+                      {verificationResult?.valid ? 'Certificate Verified' : 'Verification Failed'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>
+                      {verificationResult?.message || 'Verification failed'}
+                    </Typography>
+                  </Box>
                 </Box>
+              </Box>
 
-                {verificationResult?.certificate && (
-                  <>
-                    <Divider sx={{ my: 3 }} />
-                    <Typography variant="h6" gutterBottom>
+              {verificationResult?.certificate && (
+                <CardContent sx={{ p: 4 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h6" fontWeight={600}>
                       Certificate Details
                     </Typography>
-                    <Grid container spacing={2} sx={{ mt: 1 }}>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Certificate Number
-                        </Typography>
-                        <Typography variant="body1" fontWeight={500}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {verificationResult.valid && (
+                        <IconButton
+                          size="small"
+                          onClick={(e) => setDownloadMenuAnchor(e.currentTarget)}
+                          sx={{
+                            color: 'primary.main',
+                            '&:hover': { bgcolor: 'primary.light', color: 'white' },
+                          }}
+                        >
+                          <DownloadIcon />
+                        </IconButton>
+                      )}
+                      <Chip
+                        label={verificationResult.certificate.status}
+                        color={verificationResult.valid ? 'success' : 'error'}
+                        icon={<SecurityIcon />}
+                      />
+                    </Box>
+                  </Box>
+
+                  <Divider sx={{ mb: 3 }} />
+
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} sm={6}>
+                      <Paper sx={{ p: 2.5, bgcolor: 'grey.50', borderRadius: 2, height: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <AssignmentIcon color="primary" fontSize="small" />
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Certificate Number
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" fontWeight={600}>
                           {verificationResult.certificate.certificateNumber}
                         </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Client Name
-                        </Typography>
-                        <Typography variant="body1" fontWeight={500}>
-                          {verificationResult.certificate.clientName}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Service Type
-                        </Typography>
-                        <Typography variant="body1" fontWeight={500}>
-                          {verificationResult.certificate.serviceType}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Issue Date
-                        </Typography>
-                        <Typography variant="body1" fontWeight={500}>
-                          {format(verificationResult.certificate.issueDate, 'MMM dd, yyyy')}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Expiry Date
-                        </Typography>
-                        <Typography variant="body1" fontWeight={500}>
-                          {format(verificationResult.certificate.expiryDate, 'MMM dd, yyyy')}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Verification Status
-                        </Typography>
-                        <Typography
-                          variant="body1"
-                          fontWeight={500}
-                          color={verificationResult.valid ? 'success.main' : 'error.main'}
-                        >
-                          {verificationResult.certificate.status}
-                        </Typography>
-                      </Grid>
+                      </Paper>
                     </Grid>
 
-                    {!verificationResult.valid && (
-                      <Box sx={{ mt: 3 }}>
-                        <Button variant="contained" fullWidth href="/client/renewal">
-                          Renew This Certificate
-                        </Button>
-                      </Box>
-                    )}
-                  </>
-                )}
-              </CardContent>
+                    <Grid item xs={12} sm={6}>
+                      <Paper sx={{ p: 2.5, bgcolor: 'grey.50', borderRadius: 2, height: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <PersonIcon color="primary" fontSize="small" />
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Client Name
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" fontWeight={600}>
+                          {verificationResult.certificate.clientName}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <Paper sx={{ p: 2.5, bgcolor: 'grey.50', borderRadius: 2, height: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <AssignmentIcon color="primary" fontSize="small" />
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Service Type
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" fontWeight={600}>
+                          {verificationResult.certificate.serviceType}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <Paper sx={{ p: 2.5, bgcolor: 'grey.50', borderRadius: 2, height: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <CalendarIcon color="primary" fontSize="small" />
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Issue Date
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" fontWeight={600}>
+                          {format(verificationResult.certificate.issueDate, 'MMM dd, yyyy')}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <Paper sx={{ p: 2.5, bgcolor: 'grey.50', borderRadius: 2, height: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <CalendarIcon color="primary" fontSize="small" />
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Expiry Date
+                          </Typography>
+                        </Box>
+                        <Typography
+                          variant="body1"
+                          fontWeight={600}
+                          color={verificationResult.valid ? 'text.primary' : 'error.main'}
+                        >
+                          {format(verificationResult.certificate.expiryDate, 'MMM dd, yyyy')}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <Paper sx={{ p: 2.5, bgcolor: 'grey.50', borderRadius: 2, height: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <SecurityIcon color="primary" fontSize="small" />
+                          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                            Verification Code
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" fontWeight={500} sx={{ wordBreak: 'break-all' }}>
+                          {verificationResult.certificate.verificationCode}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  </Grid>
+
+                  {!verificationResult.valid && (
+                    <Box sx={{ mt: 4 }}>
+                      <Button
+                        variant="contained"
+                        fullWidth
+                        size="large"
+                        href="/client/renewal"
+                        sx={{
+                          py: 1.5,
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #5568d3 0%, #653a8f 100%)',
+                          },
+                        }}
+                      >
+                        Renew This Certificate
+                      </Button>
+                    </Box>
+                  )}
+                </CardContent>
+              )}
             </Card>
           </Grid>
         )}
       </Grid>
+
+      {/* QR Scanner Dialog */}
+      <QRScanner
+        open={qrScannerOpen}
+        onClose={() => setQrScannerOpen(false)}
+        onScanSuccess={handleQRScanSuccess}
+        onScanError={handleQRScanError}
+      />
+
+      {/* Download Menu */}
+      <Menu
+        anchorEl={downloadMenuAnchor}
+        open={!!downloadMenuAnchor}
+        onClose={() => setDownloadMenuAnchor(null)}
+      >
+        <MenuItem
+          onClick={async () => {
+            if (verificationResult?.certificate) {
+              await exportCertificateAsPDF(verificationResult.certificate);
+              setDownloadMenuAnchor(null);
+            }
+          }}
+        >
+          <PdfIcon sx={{ mr: 1, fontSize: 20 }} />
+          Download as PDF
+        </MenuItem>
+        <MenuItem
+          onClick={async () => {
+            if (verificationResult?.certificate) {
+              await exportCertificateAsImage(verificationResult.certificate);
+              setDownloadMenuAnchor(null);
+            }
+          }}
+        >
+          <ImageIcon sx={{ mr: 1, fontSize: 20 }} />
+          Download as Image
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };

@@ -107,7 +107,7 @@ export const PaymentVerification: React.FC = () => {
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom fontWeight={600}>
+        <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
           Payment Verification
         </Typography>
         <Typography variant="body1" color="text.secondary">
@@ -116,9 +116,16 @@ export const PaymentVerification: React.FC = () => {
       </Box>
 
       {/* Payment Details */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
             Payment Details
           </Typography>
           <Divider sx={{ mb: 3 }} />
@@ -191,9 +198,16 @@ export const PaymentVerification: React.FC = () => {
       </Card>
 
       {/* Job Order Details */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
             Associated Job Order Details
           </Typography>
           <Divider sx={{ mb: 3 }} />
@@ -230,9 +244,16 @@ export const PaymentVerification: React.FC = () => {
       </Card>
 
       {/* Proof of Payment */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
             Proof of Payment
           </Typography>
           <Divider sx={{ mb: 3 }} />
@@ -259,14 +280,14 @@ export const PaymentVerification: React.FC = () => {
       </Card>
 
       {/* Action Buttons */}
-      <Card>
-        <CardContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
+      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <CardContent sx={{ p: 4 }}>
+          <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
             Once confirmed, the job order status will be updated to "Paid" and the certificate will be issued to the client.
           </Alert>
           
           {certificateGenerated && (
-            <Alert severity="success" sx={{ mb: 2 }}>
+            <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>
               Certificate generated: <strong>{certificateGenerated}</strong>
             </Alert>
           )}
@@ -279,6 +300,7 @@ export const PaymentVerification: React.FC = () => {
               startIcon={<RejectIcon />}
               onClick={() => setRejectDialogOpen(true)}
               disabled={isProcessing || payment?.status !== 'Pending'}
+              sx={{ px: 3 }}
             >
               Reject Payment
             </Button>
@@ -289,6 +311,13 @@ export const PaymentVerification: React.FC = () => {
               startIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : <ConfirmIcon />}
               onClick={handleConfirm}
               disabled={isProcessing || payment?.status !== 'Pending'}
+              sx={{
+                px: 4,
+                background: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0a3e4e 0%, #61a270 100%)',
+                },
+              }}
             >
               {isProcessing ? 'Processing...' : 'Confirm Payment'}
             </Button>

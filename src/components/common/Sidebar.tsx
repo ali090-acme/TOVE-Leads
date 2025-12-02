@@ -8,6 +8,7 @@ import {
   ListItemText,
   Toolbar,
   Divider,
+  Typography,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -20,7 +21,11 @@ import {
   People as PeopleIcon,
   Description as CertificateIcon,
   Refresh as RenewalIcon,
+  Add as AddIcon,
   Description,
+  Person as PersonIcon,
+  Settings as SettingsIcon,
+  Help as HelpIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '@/types';
@@ -44,10 +49,15 @@ const navItems: NavItem[] = [
   { text: 'Verify Certificate', icon: <VerifiedIcon />, path: '/client/verify', roles: ['client'] },
   { text: 'Request Renewal', icon: <RenewalIcon />, path: '/client/renewal', roles: ['client'] },
   { text: 'Service History', icon: <AssignmentIcon />, path: '/client/history', roles: ['client'] },
+  { text: 'Payment History', icon: <PaymentIcon />, path: '/client/payment/history', roles: ['client'] },
+  { text: 'Profile', icon: <PersonIcon />, path: '/client/profile', roles: ['client'] },
+  { text: 'Settings', icon: <SettingsIcon />, path: '/client/settings', roles: ['client'] },
+  { text: 'Support', icon: <HelpIcon />, path: '/client/support', roles: ['client'] },
   
   // Inspector Navigation
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/inspector', roles: ['inspector'] },
   { text: 'Job Orders', icon: <AssignmentIcon />, path: '/inspector/jobs', roles: ['inspector'] },
+  { text: 'Create New Job', icon: <AddIcon />, path: '/inspector/jobs/new', roles: ['inspector'] },
   
   // Trainer Navigation
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/trainer', roles: ['trainer'] },
@@ -94,23 +104,67 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, userRole }) => 
         '& .MuiDrawer-paper': {
           width: drawerWidth,
           boxSizing: 'border-box',
+          borderRight: 'none',
+          boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
         },
       }}
     >
-      <Toolbar />
+      <Toolbar 
+        sx={{ 
+          background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+          color: 'white',
+          minHeight: '64px !important',
+        }}
+      >
+        <Typography variant="h6" fontWeight={600}>
+          Menu
+        </Typography>
+      </Toolbar>
       <Divider />
-      <List>
-        {filteredNavItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => handleNavigation(item.path)}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
+      <List sx={{ pt: 2 }}>
+        {filteredNavItems.map((item) => {
+          const isSelected = location.pathname === item.path;
+          return (
+            <ListItem key={item.text} disablePadding sx={{ mb: 0.5, px: 1 }}>
+              <ListItemButton
+                selected={isSelected}
+                onClick={() => handleNavigation(item.path)}
+                sx={{
+                  borderRadius: 2,
+                  '&.Mui-selected': {
+                    background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                    color: 'white',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #0e2c62 0%, #1a4288 100%)',
+                    },
+                    '& .MuiListItemIcon-root': {
+                      color: 'white',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: 'rgba(30, 60, 114, 0.08)',
+                  },
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    color: isSelected ? 'white' : 'text.secondary',
+                    minWidth: 40,
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    fontWeight: isSelected ? 600 : 500,
+                    fontSize: '0.95rem',
+                  }}
+                />
+              </ListItemButton>
+            </ListItem>
+          );
+        })}
       </List>
     </Drawer>
   );

@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { theme } from './theme/theme';
 import { AppProvider } from './context/AppContext';
 import { MainLayout } from './components/layout/MainLayout';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Login } from './pages/auth/Login';
 
 // Client Pages
@@ -13,11 +14,23 @@ import { CertificateVerification } from './pages/client/CertificateVerification'
 import { CertificateRenewal } from './pages/client/CertificateRenewal';
 import { ServiceHistory } from './pages/client/ServiceHistory';
 import { NewServiceRequest } from './pages/client/NewServiceRequest';
+import { ProfileManagement } from './pages/client/ProfileManagement';
+import { PaymentMethods } from './pages/client/PaymentMethods';
+import { PaymentProcessing } from './pages/client/PaymentProcessing';
+import { PaymentHistory } from './pages/client/PaymentHistory';
+import { ReceiptDetail } from './pages/client/ReceiptDetail';
+import { Settings } from './pages/client/Settings';
+import { CommunicationPreferences } from './pages/client/CommunicationPreferences';
+import { ContactSupport } from './pages/client/ContactSupport';
+import { SupportTickets } from './pages/client/SupportTickets';
+import { LegalInformation } from './pages/client/LegalInformation';
+import { PrivacyPolicy } from './pages/client/PrivacyPolicy';
 
 // Inspector Pages
 import { InspectorDashboard } from './pages/inspector/InspectorDashboard';
 import { JobOrderDetail } from './pages/inspector/JobOrderDetail';
 import { JobOrdersList } from './pages/inspector/JobOrdersList';
+import { NewJobOrder } from './pages/inspector/NewJobOrder';
 
 // Trainer Pages
 import { TrainerDashboard } from './pages/trainer/TrainerDashboard';
@@ -54,9 +67,10 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AppProvider>
-        <Router>
-        <Routes>
+      <ErrorBoundary>
+        <AppProvider>
+          <Router>
+            <Routes>
           {/* Login Route */}
           <Route path="/login" element={<Login />} />
 
@@ -114,6 +128,149 @@ function App() {
             }
           />
           <Route
+            path="/client/profile"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <ProfileManagement />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/payment/methods"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <PaymentMethods />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/payment/process"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <PaymentProcessing />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/payment/history"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <PaymentHistory />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/payment/receipt/:receiptId"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <ReceiptDetail />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/settings"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <Settings />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/communication-preferences"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <CommunicationPreferences />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/support"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <ContactSupport />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/support/tickets"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <SupportTickets />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/legal"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <LegalInformation />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/privacy"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <PrivacyPolicy />
+              </MainLayout>
+            }
+          />
+          <Route
             path="/client/new-service"
             element={
               <MainLayout
@@ -164,6 +321,19 @@ function App() {
                 userName={userName}
               >
                 <JobOrdersList />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/inspector/jobs/new"
+            element={
+              <MainLayout
+                userRole="inspector"
+                userRoles={['inspector']}
+                onRoleChange={setCurrentRole}
+                userName={userName}
+              >
+                <NewJobOrder />
               </MainLayout>
             }
           />
@@ -386,9 +556,10 @@ function App() {
 
           {/* Default Route */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </Router>
-      </AppProvider>
+            </Routes>
+          </Router>
+        </AppProvider>
+      </ErrorBoundary>
     </ThemeProvider>
   );
 }
