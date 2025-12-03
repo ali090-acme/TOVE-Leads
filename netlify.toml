@@ -1,7 +1,6 @@
 [build]
-  base = "tove-leads-web"
   command = "npm run build"
-  publish = "tove-leads-web/dist"
+  publish = "dist"
 
 [[redirects]]
   from = "/*"
