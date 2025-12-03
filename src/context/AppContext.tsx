@@ -17,6 +17,7 @@ import {
   mockNDTReports,
   mockUsers,
 } from '@/utils/mockData';
+import { extractCertificateNumber } from '@/utils/verificationParser';
 
 interface AppContextType {
   // Data
@@ -213,9 +214,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   // Certificate Verification
   const verifyCertificate = (certificateNumberOrCode: string): Certificate | null => {
-    // Import verification parser
-    const { extractCertificateNumber } = require('@/utils/verificationParser');
-    
     // Extract certificate number from input (handles both certificate numbers and three-part codes)
     const certificateNumber = extractCertificateNumber(certificateNumberOrCode) || certificateNumberOrCode;
     const cert = certificates.find(
