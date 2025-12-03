@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { theme } from './theme/theme';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, useAppContext } from './context/AppContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Login } from './pages/auth/Login';
+import { Box, Typography } from '@mui/material';
 
 // Client Pages
 import { ClientDashboard } from './pages/client/ClientDashboard';
 import { CertificateVerification } from './pages/client/CertificateVerification';
+import { VerificationHistory } from './pages/client/VerificationHistory';
+import { BulkVerification } from './pages/client/BulkVerification';
 import { CertificateRenewal } from './pages/client/CertificateRenewal';
 import { ServiceHistory } from './pages/client/ServiceHistory';
 import { NewServiceRequest } from './pages/client/NewServiceRequest';
@@ -25,12 +28,21 @@ import { ContactSupport } from './pages/client/ContactSupport';
 import { SupportTickets } from './pages/client/SupportTickets';
 import { LegalInformation } from './pages/client/LegalInformation';
 import { PrivacyPolicy } from './pages/client/PrivacyPolicy';
+import { CPDLibrary } from './pages/client/CPDLibrary';
+import { MyCertificates } from './pages/client/MyCertificates';
+import { DocumentManagement } from './pages/client/DocumentManagement';
+import { CPDCategoryDetail } from './pages/client/CPDCategoryDetail';
+import { CPDVideoPlayer } from './pages/client/CPDVideoPlayer';
+import { CPDQuiz } from './pages/client/CPDQuiz';
+import { CPDExercise } from './pages/client/CPDExercise';
 
 // Inspector Pages
 import { InspectorDashboard } from './pages/inspector/InspectorDashboard';
 import { JobOrderDetail } from './pages/inspector/JobOrderDetail';
 import { JobOrdersList } from './pages/inspector/JobOrdersList';
 import { NewJobOrder } from './pages/inspector/NewJobOrder';
+import { StickerStock } from './pages/inspector/StickerStock';
+import { InspectorSchedule } from './pages/inspector/InspectorSchedule';
 
 // Trainer Pages
 import { TrainerDashboard } from './pages/trainer/TrainerDashboard';
@@ -55,24 +67,53 @@ import { ManagerDashboard } from './pages/manager/ManagerDashboard';
 import { Analytics } from './pages/manager/Analytics';
 import { CertificateManagement } from './pages/manager/CertificateManagement';
 import { UserManagement } from './pages/manager/UserManagement';
+import { ActivityLogs } from './pages/admin/ActivityLogs';
+import { StickerManager } from './pages/admin/StickerManager';
 
 import { UserRole } from './types';
 
 function App() {
-  // Mock authentication state - in real app, this would come from auth context
-  const [currentRole, setCurrentRole] = useState<UserRole>('client');
-  const [userRoles] = useState<UserRole[]>(['client', 'inspector']); // Multi-role user example
-  const [userName] = useState('John Doe');
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ErrorBoundary>
         <AppProvider>
-          <Router>
-            <Routes>
+          <AppContent />
+        </AppProvider>
+      </ErrorBoundary>
+    </ThemeProvider>
+  );
+}
+
+function AppContent() {
+  // Get current user from context
+  const { currentUser } = useAppContext();
+  
+  console.log('📱 AppContent: currentUser from context:', currentUser?.name, currentUser?.id, currentUser?.currentRole);
+  
+  // Mock authentication state - sync with currentUser
+  const [currentRole, setCurrentRole] = useState<UserRole>(currentUser?.currentRole || 'client');
+  const [userRoles, setUserRoles] = useState<UserRole[]>(currentUser?.roles || ['client']);
+  
+  // Update role and roles when currentUser changes
+  useEffect(() => {
+    console.log('🔄 AppContent: currentUser changed:', currentUser?.name);
+    if (currentUser) {
+      setCurrentRole(currentUser.currentRole || 'client');
+      setUserRoles(currentUser.roles || ['client']);
+      console.log('✅ AppContent: Updated role to:', currentUser.currentRole);
+    } else {
+      console.warn('⚠️ AppContent: currentUser is null');
+    }
+  }, [currentUser]);
+
+  return (
+    <Router>
+      <Routes>
           {/* Login Route */}
           <Route path="/login" element={<Login />} />
+          
+          {/* Protected Routes - require authentication */}
 
           {/* Client Routes */}
           <Route
@@ -82,7 +123,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <ClientDashboard />
               </MainLayout>
@@ -95,9 +135,32 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <CertificateVerification />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/verify/history"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <VerificationHistory />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/verify/bulk"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <BulkVerification />
               </MainLayout>
             }
           />
@@ -108,7 +171,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <CertificateRenewal />
               </MainLayout>
@@ -121,7 +183,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <ServiceHistory />
               </MainLayout>
@@ -134,7 +195,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <ProfileManagement />
               </MainLayout>
@@ -147,7 +207,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <PaymentMethods />
               </MainLayout>
@@ -160,7 +219,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <PaymentProcessing />
               </MainLayout>
@@ -173,7 +231,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <PaymentHistory />
               </MainLayout>
@@ -186,9 +243,32 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <ReceiptDetail />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/certificates"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <MyCertificates />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/documents"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <DocumentManagement />
               </MainLayout>
             }
           />
@@ -199,7 +279,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <Settings />
               </MainLayout>
@@ -212,7 +291,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <CommunicationPreferences />
               </MainLayout>
@@ -225,7 +303,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <ContactSupport />
               </MainLayout>
@@ -238,7 +315,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <SupportTickets />
               </MainLayout>
@@ -251,7 +327,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <LegalInformation />
               </MainLayout>
@@ -264,7 +339,6 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <PrivacyPolicy />
               </MainLayout>
@@ -277,9 +351,68 @@ function App() {
                 userRole={currentRole}
                 userRoles={userRoles}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <NewServiceRequest />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/cpd"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <CPDLibrary />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/cpd/:categoryId"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <CPDCategoryDetail />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/cpd/:categoryId/video/:videoId"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <CPDVideoPlayer />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/cpd/:categoryId/quiz/:quizId"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <CPDQuiz />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/client/cpd/:categoryId/exercise/:exerciseId"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <CPDExercise />
               </MainLayout>
             }
           />
@@ -292,7 +425,6 @@ function App() {
                 userRole="inspector"
                 userRoles={['inspector']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <InspectorDashboard />
               </MainLayout>
@@ -305,7 +437,6 @@ function App() {
                 userRole="inspector"
                 userRoles={['inspector']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <JobOrderDetail />
               </MainLayout>
@@ -318,7 +449,6 @@ function App() {
                 userRole="inspector"
                 userRoles={['inspector']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <JobOrdersList />
               </MainLayout>
@@ -331,9 +461,32 @@ function App() {
                 userRole="inspector"
                 userRoles={['inspector']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <NewJobOrder />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/inspector/stickers"
+            element={
+              <MainLayout
+                userRole="inspector"
+                userRoles={['inspector']}
+                onRoleChange={setCurrentRole}
+              >
+                <StickerStock />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/inspector/schedule"
+            element={
+              <MainLayout
+                userRole="inspector"
+                userRoles={['inspector']}
+                onRoleChange={setCurrentRole}
+              >
+                <InspectorSchedule />
               </MainLayout>
             }
           />
@@ -346,7 +499,6 @@ function App() {
                 userRole="trainer"
                 userRoles={['trainer']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <TrainerDashboard />
               </MainLayout>
@@ -359,7 +511,6 @@ function App() {
                 userRole="trainer"
                 userRoles={['trainer']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <AttendanceResults />
               </MainLayout>
@@ -372,7 +523,6 @@ function App() {
                 userRole="trainer"
                 userRoles={['trainer']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <TrainingSchedule />
               </MainLayout>
@@ -385,7 +535,6 @@ function App() {
                 userRole="trainer"
                 userRoles={['trainer']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <ResultsList />
               </MainLayout>
@@ -400,7 +549,6 @@ function App() {
                 userRole="supervisor"
                 userRoles={['supervisor']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <SupervisorDashboard />
               </MainLayout>
@@ -413,7 +561,6 @@ function App() {
                 userRole="supervisor"
                 userRoles={['supervisor']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <ApprovalDetail />
               </MainLayout>
@@ -426,7 +573,6 @@ function App() {
                 userRole="supervisor"
                 userRoles={['supervisor']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <ApprovalsList />
               </MainLayout>
@@ -439,7 +585,6 @@ function App() {
                 userRole="supervisor"
                 userRoles={['supervisor']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <TeamPerformance />
               </MainLayout>
@@ -454,7 +599,6 @@ function App() {
                 userRole="accountant"
                 userRoles={['accountant']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <AccountantDashboard />
               </MainLayout>
@@ -467,7 +611,6 @@ function App() {
                 userRole="accountant"
                 userRoles={['accountant']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <PaymentVerification />
               </MainLayout>
@@ -480,7 +623,6 @@ function App() {
                 userRole="accountant"
                 userRoles={['accountant']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <PaymentsList />
               </MainLayout>
@@ -493,7 +635,6 @@ function App() {
                 userRole="accountant"
                 userRoles={['accountant']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <InvoiceManagement />
               </MainLayout>
@@ -508,7 +649,6 @@ function App() {
                 userRole="manager"
                 userRoles={['manager']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <ManagerDashboard />
               </MainLayout>
@@ -521,7 +661,6 @@ function App() {
                 userRole="manager"
                 userRoles={['manager']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <Analytics />
               </MainLayout>
@@ -534,7 +673,6 @@ function App() {
                 userRole="manager"
                 userRoles={['manager']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <CertificateManagement />
               </MainLayout>
@@ -547,20 +685,40 @@ function App() {
                 userRole="manager"
                 userRoles={['manager']}
                 onRoleChange={setCurrentRole}
-                userName={userName}
               >
                 <UserManagement />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/manager/activity-logs"
+            element={
+              <MainLayout
+                userRole="manager"
+                userRoles={['manager', 'gm']}
+                onRoleChange={setCurrentRole}
+              >
+                <ActivityLogs />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/manager/stickers"
+            element={
+              <MainLayout
+                userRole="manager"
+                userRoles={['manager', 'gm']}
+                onRoleChange={setCurrentRole}
+              >
+                <StickerManager />
               </MainLayout>
             }
           />
 
           {/* Default Route */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-            </Routes>
-          </Router>
-        </AppProvider>
-      </ErrorBoundary>
-    </ThemeProvider>
+      </Routes>
+    </Router>
   );
 }
 

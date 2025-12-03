@@ -37,8 +37,11 @@ import { format } from 'date-fns';
 import { Certificate } from '@/types';
 import { QRScanner } from '@/components/common/QRScanner';
 import { exportCertificateAsPDF, exportCertificateAsImage } from '@/utils/certificateExport';
+import { useNavigate } from 'react-router-dom';
+import { parseVerificationInput } from '@/utils/verificationParser';
 
 export const CertificateVerification: React.FC = () => {
+  const navigate = useNavigate();
   const { verifyCertificate, certificates } = useAppContext();
   const [certificateNumber, setCertificateNumber] = useState('');
   const [verificationResult, setVerificationResult] = useState<{
@@ -50,6 +53,7 @@ export const CertificateVerification: React.FC = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [downloadMenuAnchor, setDownloadMenuAnchor] = useState<HTMLElement | null>(null);
+  const [parsedCode, setParsedCode] = useState<ReturnType<typeof parseVerificationInput> | null>(null);
 
   const handleVerify = async () => {
     if (!certificateNumber.trim()) {
@@ -61,41 +65,74 @@ export const CertificateVerification: React.FC = () => {
       return;
     }
 
-    setIsVerifying(true);
-    setShowResult(false);
+      setIsVerifying(true);
+      setShowResult(false);
 
-    // Simulate API call delay for realistic UX
-    setTimeout(() => {
-      const certificate = verifyCertificate(certificateNumber.trim());
+      // Parse verification input
+      const parsed = parseVerificationInput(certificateNumber.trim());
+      setParsedCode(parsed);
 
-      if (certificate) {
-        const isExpired = certificate.status === 'Expired';
-        const daysUntilExpiry = Math.floor(
-          (certificate.expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-        );
+      // Simulate API call delay for realistic UX
+      setTimeout(() => {
+        const certificate = verifyCertificate(certificateNumber.trim());
+        const verificationMethod = qrScannerOpen ? 'QR Code' : parsed.type === 'three-part-code' ? 'Three-Part Code' : 'Manual Entry';
 
-        let message = 'Certificate is valid';
-        if (isExpired) {
-          message = `Certificate expired on ${format(certificate.expiryDate, 'MMM dd, yyyy')}`;
-        } else if (daysUntilExpiry <= 30) {
-          message = `Certificate is valid but expires in ${daysUntilExpiry} days`;
+        if (certificate) {
+          const isExpired = certificate.status === 'Expired';
+          const daysUntilExpiry = Math.floor(
+            (certificate.expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+          );
+
+          let message = 'Certificate is valid';
+          if (isExpired) {
+            message = `Certificate expired on ${format(certificate.expiryDate, 'MMM dd, yyyy')}`;
+          } else if (daysUntilExpiry <= 30) {
+            message = `Certificate is valid but expires in ${daysUntilExpiry} days`;
+          }
+
+          setVerificationResult({
+            valid: !isExpired,
+            certificate: certificate,
+            message: message,
+          });
+
+          // Save to verification history
+          const history = JSON.parse(localStorage.getItem('verification-history') || '[]');
+          const newRecord = {
+            id: `v-${Date.now()}`,
+            certificateNumber: certificate.certificateNumber,
+            certificateId: certificate.id,
+            verifiedAt: new Date().toISOString(),
+            status: isExpired ? 'Expired' : 'Valid',
+            method: verificationMethod,
+            verifiedBy: 'Current User', // In real app, get from auth context
+          };
+          history.unshift(newRecord);
+          localStorage.setItem('verification-history', JSON.stringify(history.slice(0, 100))); // Keep last 100 records
+        } else {
+          setVerificationResult({
+            valid: false,
+            message: 'Certificate not found. Please verify the certificate number and try again.',
+          });
+
+          // Save failed verification to history
+          const history = JSON.parse(localStorage.getItem('verification-history') || '[]');
+          const newRecord = {
+            id: `v-${Date.now()}`,
+            certificateNumber: certificateNumber.trim(),
+            verifiedAt: new Date().toISOString(),
+            status: 'Invalid',
+            method: verificationMethod,
+            verifiedBy: 'Current User',
+          };
+          history.unshift(newRecord);
+          localStorage.setItem('verification-history', JSON.stringify(history.slice(0, 100)));
         }
-
-        setVerificationResult({
-          valid: !isExpired,
-          certificate: certificate,
-          message: message,
-        });
-      } else {
-        setVerificationResult({
-          valid: false,
-          message: 'Certificate not found. Please verify the certificate number and try again.',
-        });
-      }
-      
-      setShowResult(true);
-      setIsVerifying(false);
-    }, 1000);
+        
+        setShowResult(true);
+        setIsVerifying(false);
+        setQrScannerOpen(false);
+      }, 1000);
   };
 
   const handleScan = () => {
@@ -126,14 +163,42 @@ export const CertificateVerification: React.FC = () => {
           certificate: certificate,
           message: message,
         });
+
+        // Save to verification history
+        const history = JSON.parse(localStorage.getItem('verification-history') || '[]');
+        const newRecord = {
+          id: `v-${Date.now()}`,
+          certificateNumber: certificate.certificateNumber,
+          certificateId: certificate.id,
+          verifiedAt: new Date().toISOString(),
+          status: isExpired ? 'Expired' : 'Valid',
+          method: 'QR Code',
+          verifiedBy: 'Current User',
+        };
+        history.unshift(newRecord);
+        localStorage.setItem('verification-history', JSON.stringify(history.slice(0, 100)));
       } else {
         setVerificationResult({
           valid: false,
           message: 'Certificate not found. Please verify the certificate number and try again.',
         });
+
+        // Save failed verification to history
+        const history = JSON.parse(localStorage.getItem('verification-history') || '[]');
+        const newRecord = {
+          id: `v-${Date.now()}`,
+          certificateNumber: decodedText.trim(),
+          verifiedAt: new Date().toISOString(),
+          status: 'Invalid',
+          method: 'QR Code',
+          verifiedBy: 'Current User',
+        };
+        history.unshift(newRecord);
+        localStorage.setItem('verification-history', JSON.stringify(history.slice(0, 100)));
       }
       setShowResult(true);
       setIsVerifying(false);
+      setQrScannerOpen(false);
     }, 1000);
   };
 
@@ -220,6 +285,24 @@ export const CertificateVerification: React.FC = () => {
                   sx={{ py: 1.5 }}
                 >
                   Scan QR Code
+                </Button>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="large"
+                  startIcon={<QrIcon />}
+                  onClick={() => navigate('/client/verify/bulk')}
+                  sx={{
+                    py: 1.5,
+                    borderColor: 'primary.main',
+                    color: 'primary.main',
+                    '&:hover': {
+                      borderColor: 'primary.dark',
+                      bgcolor: 'primary.light',
+                    },
+                  }}
+                >
+                  Bulk Verification
                 </Button>
               </Stack>
 

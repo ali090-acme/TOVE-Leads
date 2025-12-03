@@ -23,6 +23,7 @@ import {
 } from '@mui/icons-material';
 import { UserRole } from '@/types';
 import { useAppContext } from '@/context/AppContext';
+import { logUserAction } from '@/utils/activityLogger';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -52,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
   notificationCount = 0,
 }) => {
   const navigate = useNavigate();
-  const { setCurrentUser } = useAppContext();
+  const { setCurrentUser, currentUser } = useAppContext();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifAnchor, setNotifAnchor] = useState<null | HTMLElement>(null);
 
@@ -75,6 +76,20 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleLogout = () => {
     handleMenuClose();
+    // Log logout action
+    if (currentUser) {
+      logUserAction(
+        'LOGOUT',
+        'USER',
+        currentUser.id,
+        currentUser.name,
+        `User logged out from ${roleLabels[userRole]}`,
+        { role: userRole },
+        currentUser.id,
+        currentUser.name,
+        userRole
+      );
+    }
     // Clear current user
     setCurrentUser(null);
     // Navigate to login page

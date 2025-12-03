@@ -20,15 +20,20 @@ import {
   Analytics as AnalyticsIcon,
   People as PeopleIcon,
   Description as CertificateIcon,
+  Description as DescriptionIcon,
   Refresh as RenewalIcon,
   Add as AddIcon,
-  Description,
   Person as PersonIcon,
   Settings as SettingsIcon,
   Help as HelpIcon,
+  List as ListIcon,
+  Inventory as InventoryIcon,
+  CalendarToday as CalendarIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '@/types';
+import { useAppContext } from '@/context/AppContext';
+import { canCreateJobOrder } from '@/utils/permissions';
 
 interface SidebarProps {
   open: boolean;
@@ -46,17 +51,22 @@ interface NavItem {
 const navItems: NavItem[] = [
   // Client Navigation
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/client', roles: ['client'] },
+  { text: 'My Certificates', icon: <CertificateIcon />, path: '/client/certificates', roles: ['client'] },
   { text: 'Verify Certificate', icon: <VerifiedIcon />, path: '/client/verify', roles: ['client'] },
   { text: 'Request Renewal', icon: <RenewalIcon />, path: '/client/renewal', roles: ['client'] },
   { text: 'Service History', icon: <AssignmentIcon />, path: '/client/history', roles: ['client'] },
   { text: 'Payment History', icon: <PaymentIcon />, path: '/client/payment/history', roles: ['client'] },
   { text: 'Profile', icon: <PersonIcon />, path: '/client/profile', roles: ['client'] },
+  { text: 'CPD Library', icon: <SchoolIcon />, path: '/client/cpd', roles: ['client'] },
+  { text: 'Documents', icon: <DescriptionIcon />, path: '/client/documents', roles: ['client'] },
   { text: 'Settings', icon: <SettingsIcon />, path: '/client/settings', roles: ['client'] },
   { text: 'Support', icon: <HelpIcon />, path: '/client/support', roles: ['client'] },
   
   // Inspector Navigation
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/inspector', roles: ['inspector'] },
+  { text: 'My Schedule', icon: <CalendarIcon />, path: '/inspector/schedule', roles: ['inspector'] },
   { text: 'Job Orders', icon: <AssignmentIcon />, path: '/inspector/jobs', roles: ['inspector'] },
+  { text: 'Sticker Stock', icon: <InventoryIcon />, path: '/inspector/stickers', roles: ['inspector'] },
   { text: 'Create New Job', icon: <AddIcon />, path: '/inspector/jobs/new', roles: ['inspector'] },
   
   // Trainer Navigation
@@ -72,13 +82,15 @@ const navItems: NavItem[] = [
   // Accountant Navigation
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/accountant', roles: ['accountant'] },
   { text: 'Payment Verification', icon: <PaymentIcon />, path: '/accountant/payments', roles: ['accountant'] },
-  { text: 'Invoice Management', icon: <Description />, path: '/accountant/invoices', roles: ['accountant'] },
+  { text: 'Invoice Management', icon: <DescriptionIcon />, path: '/accountant/invoices', roles: ['accountant'] },
   
   // Manager/GM Navigation
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/manager', roles: ['manager', 'gm'] },
   { text: 'Analytics', icon: <AnalyticsIcon />, path: '/manager/analytics', roles: ['manager', 'gm'] },
   { text: 'Certificates', icon: <CertificateIcon />, path: '/manager/certificates', roles: ['manager', 'gm'] },
   { text: 'User Management', icon: <PeopleIcon />, path: '/manager/users', roles: ['manager', 'gm'] },
+  { text: 'Activity Logs', icon: <ListIcon />, path: '/manager/activity-logs', roles: ['manager', 'gm'] },
+  { text: 'Sticker Manager', icon: <InventoryIcon />, path: '/manager/stickers', roles: ['manager', 'gm'] },
 ];
 
 const drawerWidth = 240;
@@ -86,8 +98,19 @@ const drawerWidth = 240;
 export const Sidebar: React.FC<SidebarProps> = ({ open, onClose, userRole }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentUser } = useAppContext();
 
-  const filteredNavItems = navItems.filter((item) => item.roles.includes(userRole));
+  // Filter nav items based on role and permissions
+  const filteredNavItems = navItems.filter((item) => {
+    if (!item.roles.includes(userRole)) return false;
+    
+    // Special check for "Create New Job" - requires permission
+    if (item.path === '/inspector/jobs/new') {
+      return canCreateJobOrder(currentUser);
+    }
+    
+    return true;
+  });
 
   const handleNavigation = (path: string) => {
     navigate(path);

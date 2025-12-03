@@ -157,12 +157,46 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return stored ? JSON.parse(stored) : mockNDTReports;
   });
 
-  const [users] = useState<User[]>(() => {
+  const [users, setUsers] = useState<User[]>(() => {
     const stored = localStorage.getItem('users');
     return stored ? JSON.parse(stored) : mockUsers;
   });
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // Sync users to localStorage
+  useEffect(() => {
+    localStorage.setItem('users', JSON.stringify(users));
+  }, [users]);
+
+  // Load currentUser from localStorage on init
+  const [currentUser, setCurrentUserState] = useState<User | null>(() => {
+    const stored = localStorage.getItem('currentUser');
+    console.log('🔍 AppContext: Loading currentUser from localStorage:', stored);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        console.log('✅ AppContext: Loaded currentUser:', parsed?.name, parsed?.id);
+        return parsed;
+      } catch (e) {
+        console.error('❌ AppContext: Error parsing currentUser from localStorage:', e);
+        return null;
+      }
+    }
+    console.log('⚠️ AppContext: No currentUser found in localStorage');
+    return null;
+  });
+  
+  // Wrapper to persist currentUser to localStorage
+  const setCurrentUser = (user: User | null) => {
+    console.log('📝 AppContext: Setting currentUser:', user?.name, user?.id, user?.currentRole);
+    setCurrentUserState(user);
+    if (user) {
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      console.log('💾 AppContext: Saved currentUser to localStorage');
+    } else {
+      localStorage.removeItem('currentUser');
+      console.log('🗑️ AppContext: Removed currentUser from localStorage');
+    }
+  };
 
   // Persist data to localStorage whenever it changes
   useEffect(() => {
@@ -178,7 +212,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   }, [payments]);
 
   // Certificate Verification
-  const verifyCertificate = (certificateNumber: string): Certificate | null => {
+  const verifyCertificate = (certificateNumberOrCode: string): Certificate | null => {
+    // Import verification parser
+    const { extractCertificateNumber } = require('@/utils/verificationParser');
+    
+    // Extract certificate number from input (handles both certificate numbers and three-part codes)
+    const certificateNumber = extractCertificateNumber(certificateNumberOrCode) || certificateNumberOrCode;
     const cert = certificates.find(
       (c) =>
         c.certificateNumber.toLowerCase() === certificateNumber.toLowerCase() ||

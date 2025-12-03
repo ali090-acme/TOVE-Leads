@@ -8,6 +8,36 @@ export type UserRole =
   | 'manager' 
   | 'gm';
 
+// Permission Levels
+export type PermissionLevel = 'Basic' | 'Moderate' | 'Advanced';
+
+// Permission Types
+export type PermissionType = 
+  | 'createJobOrder'           // Can create job orders independently
+  | 'viewReports'              // Can view reports
+  | 'downloadReports'          // Can download reports
+  | 'downloadCertificates'     // Can download certificates
+  | 'viewAllJobOrders'         // Can view all job orders (not just assigned)
+  | 'approveJobOrders'         // Can approve job orders
+  | 'manageUsers'              // Can manage users
+  | 'manageStickers'           // Can manage stickers/tags
+  | 'viewAnalytics'            // Can view analytics
+  | 'manageSettings'           // Can manage system settings
+  | 'issueCertificates'        // Can issue certificates on-demand
+  | 'viewFinancialData'        // Can view financial/payment data
+  | 'exportData'               // Can export data
+  | 'manageRegions'            // Can manage regions/branches
+  | 'assignJobs'               // Can assign jobs to others
+  | 'viewActivityLogs';        // Can view activity logs
+
+// User Permissions Interface
+export interface UserPermissions {
+  level: PermissionLevel;
+  permissions: {
+    [key in PermissionType]?: boolean;
+  };
+}
+
 // User Interface
 export interface User {
   id: string;
@@ -17,6 +47,7 @@ export interface User {
   currentRole?: UserRole;
   employeeId?: string;
   department?: string;
+  permissions?: UserPermissions; // User-specific permissions
 }
 
 // Client

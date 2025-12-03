@@ -108,7 +108,7 @@ export const ClientDashboard: React.FC = () => {
               },
               cursor: 'pointer',
             }}
-            onClick={() => window.location.href = '/client/verify'}
+            onClick={() => navigate('/client/verify')}
           >
             <CardContent sx={{ p: 3, textAlign: 'center' }}>
               <Avatar
@@ -146,7 +146,7 @@ export const ClientDashboard: React.FC = () => {
               },
               cursor: 'pointer',
             }}
-            onClick={() => window.location.href = '/client/renewal'}
+            onClick={() => navigate('/client/renewal')}
           >
             <CardContent sx={{ p: 3, textAlign: 'center' }}>
               <Avatar

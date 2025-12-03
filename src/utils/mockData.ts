@@ -8,6 +8,7 @@ import {
   Notification,
   User 
 } from '@/types';
+import { getDefaultPermissions } from './permissions';
 
 // Mock Users
 export const mockUsers: User[] = [
@@ -26,6 +27,15 @@ export const mockUsers: User[] = [
     currentRole: 'inspector',
     employeeId: 'EMP-001',
     department: 'Inspection',
+    // Example: Jane Inspector CAN create job orders (Advanced permission)
+    permissions: {
+      level: 'Advanced',
+      permissions: {
+        createJobOrder: true, // Explicitly allowed
+        viewReports: true,
+        downloadCertificates: true,
+      },
+    },
   },
   {
     id: 'user-3',
@@ -35,6 +45,7 @@ export const mockUsers: User[] = [
     currentRole: 'trainer',
     employeeId: 'EMP-002',
     department: 'Training',
+    permissions: getDefaultPermissions('trainer', 'Moderate'),
   },
   {
     id: 'user-4',
@@ -44,6 +55,7 @@ export const mockUsers: User[] = [
     currentRole: 'supervisor',
     employeeId: 'EMP-003',
     department: 'Operations',
+    permissions: getDefaultPermissions('supervisor', 'Advanced'),
   },
   {
     id: 'user-5',
@@ -53,6 +65,7 @@ export const mockUsers: User[] = [
     currentRole: 'accountant',
     employeeId: 'EMP-004',
     department: 'Finance',
+    permissions: getDefaultPermissions('accountant', 'Moderate'),
   },
   {
     id: 'user-6',
@@ -62,6 +75,25 @@ export const mockUsers: User[] = [
     currentRole: 'manager',
     employeeId: 'EMP-005',
     department: 'Management',
+    permissions: getDefaultPermissions('manager', 'Advanced'),
+  },
+  // Example: Shahid Inspector - CANNOT create job orders (Basic permission)
+  {
+    id: 'user-7',
+    name: 'Shahid Inspector',
+    email: 'shahid@example.com',
+    roles: ['inspector'],
+    currentRole: 'inspector',
+    employeeId: 'EMP-006',
+    department: 'Inspection',
+    permissions: {
+      level: 'Basic',
+      permissions: {
+        createJobOrder: false, // Explicitly denied
+        viewReports: true,
+        downloadCertificates: true,
+      },
+    },
   },
 ];
 

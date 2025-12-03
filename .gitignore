@@ -23,7 +23,13 @@ dist-ssr
 *.sln
 *.sw?
 
+# Documentation files - DO NOT DEPLOY
+*.md
+*.txt
+*.MD
+*.TXT
 
+# Deployment
 .vercel
 
 

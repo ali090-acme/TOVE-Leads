@@ -5,6 +5,8 @@ import {
   Assignment as JobIcon,
   Warning as AlertIcon,
   People as UsersIcon,
+  Inventory as InventoryIcon,
+  RequestQuote as RequestIcon,
 } from '@mui/icons-material';
 import { StatsCard } from '@/components/common/StatsCard';
 import { DataTable, Column } from '@/components/common/DataTable';
@@ -14,8 +16,11 @@ import { format } from 'date-fns';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { LineChart } from '@mui/x-charts/LineChart';
+import { useNavigate } from 'react-router-dom';
 
 export const ManagerDashboard: React.FC = () => {
+  const navigate = useNavigate();
+  
   const totalRevenue = mockPayments
     .filter((p) => p.status === 'Confirmed')
     .reduce((sum, p) => sum + p.amount, 0);
@@ -28,6 +33,33 @@ export const ManagerDashboard: React.FC = () => {
   });
 
   const criticalAlerts = 2; // Mock value
+
+  // Get sticker inventory stats
+  const getStickerStats = () => {
+    const storedLots = localStorage.getItem('sticker-lots');
+    const storedStock = localStorage.getItem('sticker-stock');
+    const storedRequests = localStorage.getItem('sticker-requests');
+
+    let totalAvailable = 0;
+    let totalIssued = 0;
+    let pendingRequests = 0;
+
+    if (storedLots) {
+      const lots = JSON.parse(storedLots);
+      totalAvailable = lots.reduce((sum: number, lot: any) => sum + (lot.availableQuantity || 0), 0);
+      totalIssued = lots.reduce((sum: number, lot: any) => sum + (lot.issuedQuantity || 0), 0);
+    }
+
+    if (storedRequests) {
+      const requests = JSON.parse(storedRequests);
+      pendingRequests = requests.filter((r: any) => r.status === 'Pending').length;
+    }
+
+    return { totalAvailable, totalIssued, pendingRequests };
+  };
+
+  const stickerStats = getStickerStats();
+  const lowStockAlert = stickerStats.totalAvailable < 100; // Alert if less than 100 stickers available
 
   const columns: Column<Certificate>[] = [
     { id: 'certificateNumber', label: 'Certificate Number', minWidth: 150 },
@@ -206,6 +238,112 @@ export const ManagerDashboard: React.FC = () => {
                   <UsersIcon sx={{ fontSize: 32 }} />
                 </Avatar>
               </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Sticker Management Overview */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12}>
+          <Card
+            elevation={3}
+            sx={{
+              borderRadius: 3,
+              overflow: 'hidden',
+              border: lowStockAlert || stickerStats.pendingRequests > 0 ? '2px solid' : 'none',
+              borderColor: lowStockAlert ? 'error.main' : stickerStats.pendingRequests > 0 ? 'warning.main' : 'transparent',
+            }}
+          >
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
+                color: 'white',
+                p: 2.5,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <InventoryIcon sx={{ fontSize: 32 }} />
+                <Box>
+                  <Typography variant="h6" fontWeight={600}>
+                    Sticker Management
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    Monitor sticker inventory and stock requests
+                  </Typography>
+                </Box>
+              </Box>
+              <Button
+                variant="contained"
+                onClick={() => navigate('/manager/stickers')}
+                sx={{
+                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                  color: 'white',
+                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.3)' },
+                }}
+              >
+                Manage Stickers
+              </Button>
+            </Box>
+            <CardContent sx={{ p: 3 }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                    <Typography variant="h4" fontWeight={700} color={lowStockAlert ? 'error.main' : 'text.primary'}>
+                      {stickerStats.totalAvailable}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Available Stickers
+                    </Typography>
+                    {lowStockAlert && (
+                      <Typography variant="caption" color="error.main" fontWeight={600} sx={{ mt: 1, display: 'block' }}>
+                        Low Stock Alert
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                    <Typography variant="h4" fontWeight={700}>
+                      {stickerStats.totalIssued}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Issued to Inspectors
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Box
+                    sx={{
+                      textAlign: 'center',
+                      p: 2,
+                      bgcolor: stickerStats.pendingRequests > 0 ? 'warning.light' : 'grey.50',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="h4" fontWeight={700} color={stickerStats.pendingRequests > 0 ? 'warning.dark' : 'text.primary'}>
+                      {stickerStats.pendingRequests}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Pending Requests
+                    </Typography>
+                    {stickerStats.pendingRequests > 0 && (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        startIcon={<RequestIcon />}
+                        onClick={() => navigate('/manager/stickers')}
+                        sx={{ mt: 1 }}
+                      >
+                        Review Requests
+                      </Button>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
         </Grid>

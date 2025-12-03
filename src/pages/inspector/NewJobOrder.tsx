@@ -27,6 +27,15 @@ import {
 } from '@mui/icons-material';
 import { useAppContext } from '@/context/AppContext';
 import { JobOrder, ServiceType, Client } from '@/types';
+import { canCreateJobOrder } from '@/utils/permissions';
+import {
+  addToOfflineQueue,
+  isOnline,
+  getSyncStatus,
+  initializeOfflineSync,
+  fileToBase64,
+} from '@/utils/offlineQueue';
+import { CloudOff as CloudOffIcon, CloudDone as CloudDoneIcon, PhotoCamera as PhotoCameraIcon } from '@mui/icons-material';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -47,9 +56,21 @@ export const NewJobOrder: React.FC = () => {
   const navigate = useNavigate();
   const { clients, createJobOrder, currentUser } = useAppContext();
   
+  // Check if user has permission to create job orders
+  const hasPermission = canCreateJobOrder(currentUser);
+  
+  // Initialize offline sync
+  React.useEffect(() => {
+    initializeOfflineSync();
+  }, []);
+  
   const [activeTab, setActiveTab] = useState(0); // 0 = Existing Client, 1 = New Client
   const [loading, setLoading] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'warning' });
+  const [onlineStatus, setOnlineStatus] = useState(isOnline());
+  const [stickerPhoto, setStickerPhoto] = useState<File | null>(null);
+  const [stickerNumber, setStickerNumber] = useState('');
+  const [showStickerSection, setShowStickerSection] = useState(false);
 
   // Form state for existing client
   const [formData, setFormData] = useState({
@@ -72,6 +93,37 @@ export const NewJobOrder: React.FC = () => {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Monitor online/offline status
+  React.useEffect(() => {
+    const handleOnline = () => {
+      setOnlineStatus(true);
+      const syncStatus = getSyncStatus();
+      if (syncStatus.pendingItems > 0) {
+        setSnackbar({
+          open: true,
+          message: `Device is online. ${syncStatus.pendingItems} pending job(s) will be synced automatically.`,
+          severity: 'success',
+        });
+      }
+    };
+    const handleOffline = () => {
+      setOnlineStatus(false);
+      setSnackbar({
+        open: true,
+        message: 'Device is offline. Job order will be saved locally and synced when online.',
+        severity: 'warning',
+      });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -122,7 +174,29 @@ export const NewJobOrder: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleStickerPhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setStickerPhoto(file);
+      setSnackbar({
+        open: true,
+        message: 'Sticker photo uploaded successfully',
+        severity: 'success',
+      });
+    }
+  };
+
   const handleSubmit = async () => {
+    // Check permission first
+    if (!hasPermission) {
+      setSnackbar({
+        open: true,
+        message: 'You do not have permission to create job orders. Please contact your supervisor or administrator.',
+        severity: 'error',
+      });
+      return;
+    }
+
     if (!validateForm()) {
       setSnackbar({
         open: true,
@@ -135,9 +209,6 @@ export const NewJobOrder: React.FC = () => {
     setLoading(true);
 
     try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
       let clientId = formData.clientId;
       let clientName = '';
 
@@ -169,21 +240,83 @@ export const NewJobOrder: React.FC = () => {
         clientName = selectedClient?.name || 'Unknown Client';
       }
 
-      // Create job order
-      const newJobOrder = createJobOrder({
+      // Prepare job order data
+      const jobOrderData = {
         clientId: clientId,
         clientName: clientName,
         serviceType: formData.serviceType as ServiceType,
         dateTime: new Date(formData.dateTime),
         location: formData.location,
-        status: 'Pending',
-        assignedTo: currentUser?.id || 'user-2', // Auto-assign to current inspector
+        status: 'Pending' as const,
+        assignedTo: currentUser?.id || 'user-2',
         assignedToName: currentUser?.name || 'Inspector',
         priority: formData.priority,
-      });
+      };
+
+      // If offline, add to offline queue
+      if (!onlineStatus) {
+        let stickerPhotoBase64: string | undefined;
+        if (stickerPhoto) {
+          stickerPhotoBase64 = await fileToBase64(stickerPhoto);
+        }
+
+        const offlineJob = addToOfflineQueue({
+          ...jobOrderData,
+          stickerPhoto: stickerPhotoBase64,
+          stickerNumber: stickerNumber || undefined,
+        });
+
+        setSnackbar({
+          open: true,
+          message: `Job order saved offline (ID: ${offlineJob.offlineId.substring(0, 12)}...). It will be synced automatically when online.`,
+          severity: 'success',
+        });
+
+        // Reset form
+        setFormData({
+          clientId: '',
+          serviceType: '' as ServiceType | '',
+          location: '',
+          dateTime: '',
+          priority: 'Medium',
+          description: '',
+        });
+        setNewClientData({
+          name: '',
+          email: '',
+          phone: '',
+          address: '',
+          businessType: 'Construction',
+          location: '',
+        });
+        setStickerPhoto(null);
+        setStickerNumber('');
+        setShowStickerSection(false);
+        setErrors({});
+
+        navigate('/inspector/jobs');
+        return;
+      }
+
+      // Online: Create job order normally
+      // Simulate API call delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const newJobOrder = createJobOrder(jobOrderData);
 
       if (!newJobOrder) {
         throw new Error('Failed to create job order');
+      }
+
+      // If sticker photo was uploaded, store it (in real app, upload to server)
+      if (stickerPhoto) {
+        const stickerPhotoBase64 = await fileToBase64(stickerPhoto);
+        // Store sticker photo reference in job order metadata (mock)
+        console.log('Sticker photo uploaded:', {
+          jobOrderId: newJobOrder.id,
+          stickerNumber: stickerNumber || 'N/A',
+          photoSize: stickerPhoto.size,
+        });
       }
 
       // Show success message
@@ -212,9 +345,12 @@ export const NewJobOrder: React.FC = () => {
         businessType: 'Construction',
         location: '',
       });
+      setStickerPhoto(null);
+      setStickerNumber('');
+      setShowStickerSection(false);
       setErrors({});
 
-      // Redirect to job orders list immediately (state is already updated)
+      // Redirect to job orders list
       navigate('/inspector/jobs');
     } catch (error) {
       setSnackbar({
@@ -252,9 +388,31 @@ export const NewJobOrder: React.FC = () => {
           }}
         />
         <CardContent sx={{ p: 4 }}>
+          {!hasPermission && (
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+              <strong>Permission Denied:</strong> You do not have permission to create job orders independently. 
+              Please contact your supervisor to have a job order assigned to you, or request permission from your administrator.
+            </Alert>
+          )}
+          
+          {/* Online/Offline Status */}
+          <Alert 
+            severity={onlineStatus ? 'success' : 'warning'} 
+            sx={{ mb: 3, borderRadius: 2 }}
+            icon={onlineStatus ? <CloudDoneIcon /> : <CloudOffIcon />}
+          >
+            <strong>Status:</strong> {onlineStatus ? 'Online' : 'Offline'}
+            {!onlineStatus && (
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Job orders will be saved locally and synced automatically when you're back online.
+              </Typography>
+            )}
+          </Alert>
+
           <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
             <strong>Remote Site Scenario:</strong> If you're at a new client site, you can create 
             a new client profile and job order immediately. The job will be auto-assigned to you.
+            {!onlineStatus && ' You can also upload a photo of the sticker attachment for accountability.'}
           </Alert>
 
           {/* Client Selection Tabs */}
@@ -472,6 +630,68 @@ export const NewJobOrder: React.FC = () => {
                 placeholder="Provide any additional details about the job order..."
               />
             </Grid>
+
+            {/* Sticker Section - For accountability */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" fontWeight={600}>
+                  Sticker Information (Optional)
+                </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setShowStickerSection(!showStickerSection)}
+                >
+                  {showStickerSection ? 'Hide' : 'Show'}
+                </Button>
+              </Box>
+              {showStickerSection && (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Sticker Number Used"
+                      value={stickerNumber}
+                      onChange={(e) => setStickerNumber(e.target.value)}
+                      placeholder="Enter sticker number if used"
+                      helperText="Track which sticker was used for this job"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Box>
+                      <input
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        id="sticker-photo-upload"
+                        type="file"
+                        onChange={handleStickerPhotoChange}
+                        capture="environment"
+                      />
+                      <label htmlFor="sticker-photo-upload">
+                        <Button
+                          variant="outlined"
+                          component="span"
+                          fullWidth
+                          startIcon={<PhotoCameraIcon />}
+                          sx={{ height: '56px' }}
+                        >
+                          {stickerPhoto ? `Photo: ${stickerPhoto.name}` : 'Upload Sticker Photo'}
+                        </Button>
+                      </label>
+                      {stickerPhoto && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          Photo uploaded: {stickerPhoto.name} ({(stickerPhoto.size / 1024).toFixed(2)} KB)
+                        </Typography>
+                      )}
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        Take a photo of the sticker attached to equipment for accountability
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              )}
+            </Grid>
           </Grid>
 
           {/* Action Buttons */}
@@ -490,12 +710,15 @@ export const NewJobOrder: React.FC = () => {
               size="large"
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || !hasPermission}
               sx={{
                 px: 4,
                 background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
                 '&:hover': {
                   background: 'linear-gradient(135deg, #0e2c62 0%, #1a4288 100%)',
+                },
+                '&:disabled': {
+                  background: '#ccc',
                 },
               }}
             >
