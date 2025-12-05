@@ -29,6 +29,7 @@ import {
   List as ListIcon,
   Inventory as InventoryIcon,
   CalendarToday as CalendarIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '@/types';
@@ -89,6 +90,7 @@ const navItems: NavItem[] = [
   { text: 'Analytics', icon: <AnalyticsIcon />, path: '/manager/analytics', roles: ['manager', 'gm'] },
   { text: 'Certificates', icon: <CertificateIcon />, path: '/manager/certificates', roles: ['manager', 'gm'] },
   { text: 'User Management', icon: <PeopleIcon />, path: '/manager/users', roles: ['manager', 'gm'] },
+  { text: 'Delegation Management', icon: <SecurityIcon />, path: '/manager/delegation', roles: ['manager', 'gm'] },
   { text: 'Activity Logs', icon: <ListIcon />, path: '/manager/activity-logs', roles: ['manager', 'gm'] },
   { text: 'Sticker Manager', icon: <InventoryIcon />, path: '/manager/stickers', roles: ['manager', 'gm'] },
 ];

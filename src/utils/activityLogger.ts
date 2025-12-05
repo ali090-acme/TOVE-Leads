@@ -33,9 +33,13 @@ export type EntityType =
 
 export interface ActivityLog {
   id: string;
-  userId: string | null;
-  userName: string | null;
-  userRole: string | null;
+  userId: string | null; // Actual user who performed the action (for accountability)
+  userName: string | null; // Actual user name (for accountability)
+  userRole: string | null; // Actual user role
+  displayedUserId?: string | null; // User ID shown in front end (technical manager)
+  displayedUserName?: string | null; // User name shown in front end (technical manager)
+  displayedUserRole?: string | null; // User role shown in front end
+  isDelegated?: boolean; // Whether action was performed via delegation
   actionType: ActionType;
   entityType: EntityType;
   entityId: string | null;
@@ -94,7 +98,7 @@ const saveActivityLogs = (logs: ActivityLog[]): void => {
 };
 
 /**
- * Log a user action
+ * Log a user action (with shadow role/delegation support)
  */
 export const logUserAction = (
   actionType: ActionType,
@@ -105,19 +109,36 @@ export const logUserAction = (
   details: Record<string, any> = {},
   userId?: string | null,
   userName?: string | null,
-  userRole?: string | null
+  userRole?: string | null,
+  displayedUserId?: string | null, // Technical manager ID (shown in front end)
+  displayedUserName?: string | null, // Technical manager name (shown in front end)
+  displayedUserRole?: string | null // Technical manager role
 ): void => {
+  const isDelegated = displayedUserId && displayedUserId !== userId;
+  
   const log: ActivityLog = {
     id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    userId: userId || null,
-    userName: userName || null,
-    userRole: userRole || null,
+    userId: userId || null, // Actual user (for accountability)
+    userName: userName || null, // Actual user name (for accountability)
+    userRole: userRole || null, // Actual user role
+    displayedUserId: displayedUserId || userId || null, // Shown in front end
+    displayedUserName: displayedUserName || userName || null, // Shown in front end
+    displayedUserRole: displayedUserRole || userRole || null, // Shown in front end
+    isDelegated: isDelegated || false,
     actionType,
     entityType,
     entityId,
     entityName,
-    description,
-    details,
+    description: isDelegated 
+      ? `${description} (Delegated by ${displayedUserName || 'Manager'})`
+      : description,
+    details: {
+      ...details,
+      delegation: isDelegated ? {
+        actualUser: userName,
+        displayedUser: displayedUserName,
+      } : undefined,
+    },
     ipAddress: '127.0.0.1', // In production, get from request
     userAgent: navigator.userAgent,
     timestamp: new Date(),

@@ -35,7 +35,8 @@ import {
   initializeOfflineSync,
   fileToBase64,
 } from '@/utils/offlineQueue';
-import { CloudOff as CloudOffIcon, CloudDone as CloudDoneIcon, PhotoCamera as PhotoCameraIcon } from '@mui/icons-material';
+import { CloudOff as CloudOffIcon, CloudDone as CloudDoneIcon, PhotoCamera as PhotoCameraIcon, Inventory as InventoryIcon } from '@mui/icons-material';
+import { allocateStickerToJob, canAllocateSticker, getAvailableStickerQuantity } from '@/utils/stickerTracking';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -63,6 +64,44 @@ export const NewJobOrder: React.FC = () => {
   React.useEffect(() => {
     initializeOfflineSync();
   }, []);
+
+  // Load available stickers for current inspector
+  React.useEffect(() => {
+    if (currentUser?.id) {
+      loadAvailableStickers();
+    }
+  }, [currentUser]);
+
+  const loadAvailableStickers = () => {
+    const STORAGE_KEY_STOCK = 'sticker-stock';
+    const storedStock = localStorage.getItem(STORAGE_KEY_STOCK);
+    
+    if (storedStock) {
+      const parsed = JSON.parse(storedStock);
+      const inspectorStock = parsed
+        .filter((s: any) => {
+          // Match by user ID
+          if (s.assignedTo === currentUser?.id) return true;
+          // Match by name
+          if (currentUser?.name && s.assignedToName) {
+            const stockName = s.assignedToName.toLowerCase().trim();
+            const userName = currentUser.name.toLowerCase().trim();
+            if (stockName === userName || stockName.includes(userName) || userName.includes(stockName)) {
+              return true;
+            }
+          }
+          return false;
+        })
+        .map((s: any) => ({
+          ...s,
+          issuedDate: new Date(s.issuedDate),
+          availableQuantity: getAvailableStickerQuantity(s.quantity, s.id),
+        }))
+        .filter((s: any) => s.availableQuantity > 0); // Only show stickers with available quantity
+      
+      setAvailableStickers(inspectorStock);
+    }
+  };
   
   const [activeTab, setActiveTab] = useState(0); // 0 = Existing Client, 1 = New Client
   const [loading, setLoading] = useState(false);
@@ -71,6 +110,8 @@ export const NewJobOrder: React.FC = () => {
   const [stickerPhoto, setStickerPhoto] = useState<File | null>(null);
   const [stickerNumber, setStickerNumber] = useState('');
   const [showStickerSection, setShowStickerSection] = useState(false);
+  const [selectedStickerStockId, setSelectedStickerStockId] = useState<string>('');
+  const [availableStickers, setAvailableStickers] = useState<any[]>([]);
 
   // Form state for existing client
   const [formData, setFormData] = useState({
@@ -260,11 +301,38 @@ export const NewJobOrder: React.FC = () => {
           stickerPhotoBase64 = await fileToBase64(stickerPhoto);
         }
 
+        // Prepare sticker allocation data for offline job
+        const stickerAllocation = selectedStickerStockId ? {
+          stickerId: selectedStickerStockId,
+          stickerNumber: stickerNumber || undefined,
+          stickerLotNumber: availableStickers.find((s) => s.id === selectedStickerStockId)?.lotNumber || undefined,
+          allocatedAt: new Date(),
+          allocatedBy: currentUser?.id || 'user-2',
+          stickerPhoto: stickerPhotoBase64,
+        } : undefined;
+
         const offlineJob = addToOfflineQueue({
           ...jobOrderData,
+          stickerAllocation,
           stickerPhoto: stickerPhotoBase64,
           stickerNumber: stickerNumber || undefined,
         });
+
+        // If sticker selected, allocate it (will be synced when online)
+        if (selectedStickerStockId) {
+          const selectedSticker = availableStickers.find((s) => s.id === selectedStickerStockId);
+          if (selectedSticker && canAllocateSticker(selectedSticker.id, selectedSticker.quantity)) {
+            allocateStickerToJob(
+              selectedSticker.id,
+              selectedSticker.lotNumber,
+              stickerNumber || undefined,
+              offlineJob.offlineId, // Use offline ID temporarily
+              offlineJob.offlineId,
+              currentUser?.id || 'user-2',
+              currentUser?.name || 'Inspector'
+            );
+          }
+        }
 
         setSnackbar({
           open: true,
@@ -291,8 +359,10 @@ export const NewJobOrder: React.FC = () => {
         });
         setStickerPhoto(null);
         setStickerNumber('');
+        setSelectedStickerStockId('');
         setShowStickerSection(false);
         setErrors({});
+        loadAvailableStickers(); // Reload available stickers
 
         navigate('/inspector/jobs');
         return;
@@ -308,11 +378,45 @@ export const NewJobOrder: React.FC = () => {
         throw new Error('Failed to create job order');
       }
 
-      // If sticker photo was uploaded, store it (in real app, upload to server)
-      if (stickerPhoto) {
+      // Allocate sticker to job order if selected
+      if (selectedStickerStockId) {
+        const selectedSticker = availableStickers.find((s) => s.id === selectedStickerStockId);
+        if (selectedSticker) {
+          // Check if sticker can be allocated
+          if (canAllocateSticker(selectedSticker.id, selectedSticker.quantity)) {
+            const stickerPhotoBase64 = stickerPhoto ? await fileToBase64(stickerPhoto) : undefined;
+            
+            // Allocate sticker to job order
+            allocateStickerToJob(
+              selectedSticker.id,
+              selectedSticker.lotNumber,
+              stickerNumber || undefined,
+              newJobOrder.id,
+              newJobOrder.id,
+              currentUser?.id || 'user-2',
+              currentUser?.name || 'Inspector'
+            );
+
+            // Update job order with sticker allocation info
+            const jobOrders = JSON.parse(localStorage.getItem('jobOrders') || '[]');
+            const jobIndex = jobOrders.findIndex((jo: any) => jo.id === newJobOrder.id);
+            if (jobIndex !== -1) {
+              jobOrders[jobIndex].stickerAllocation = {
+                stickerId: selectedSticker.id,
+                stickerNumber: stickerNumber || undefined,
+                stickerLotNumber: selectedSticker.lotNumber,
+                allocatedAt: new Date(),
+                allocatedBy: currentUser?.id || 'user-2',
+                stickerPhoto: stickerPhotoBase64,
+              };
+              localStorage.setItem('jobOrders', JSON.stringify(jobOrders));
+            }
+          }
+        }
+      } else if (stickerPhoto) {
+        // If sticker photo uploaded but no sticker selected, just log it
         const stickerPhotoBase64 = await fileToBase64(stickerPhoto);
-        // Store sticker photo reference in job order metadata (mock)
-        console.log('Sticker photo uploaded:', {
+        console.log('Sticker photo uploaded without allocation:', {
           jobOrderId: newJobOrder.id,
           stickerNumber: stickerNumber || 'N/A',
           photoSize: stickerPhoto.size,
@@ -631,64 +735,127 @@ export const NewJobOrder: React.FC = () => {
               />
             </Grid>
 
-            {/* Sticker Section - For accountability */}
+            {/* Sticker Allocation Section - Through Job Order */}
             <Grid item xs={12}>
               <Divider sx={{ my: 2 }} />
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" fontWeight={600}>
-                  Sticker Information (Optional)
-                </Typography>
+                <Box>
+                  <Typography variant="h6" fontWeight={600}>
+                    Sticker Allocation (Through Job Order)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Select from your assigned stickers to link with this job order
+                  </Typography>
+                </Box>
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() => setShowStickerSection(!showStickerSection)}
+                  onClick={() => {
+                    setShowStickerSection(!showStickerSection);
+                    if (!showStickerSection) {
+                      loadAvailableStickers();
+                    }
+                  }}
                 >
                   {showStickerSection ? 'Hide' : 'Show'}
                 </Button>
               </Box>
               {showStickerSection && (
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Sticker Number Used"
-                      value={stickerNumber}
-                      onChange={(e) => setStickerNumber(e.target.value)}
-                      placeholder="Enter sticker number if used"
-                      helperText="Track which sticker was used for this job"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Box>
-                      <input
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        id="sticker-photo-upload"
-                        type="file"
-                        onChange={handleStickerPhotoChange}
-                        capture="environment"
-                      />
-                      <label htmlFor="sticker-photo-upload">
-                        <Button
-                          variant="outlined"
-                          component="span"
-                          fullWidth
-                          startIcon={<PhotoCameraIcon />}
-                          sx={{ height: '56px' }}
-                        >
-                          {stickerPhoto ? `Photo: ${stickerPhoto.name}` : 'Upload Sticker Photo'}
-                        </Button>
-                      </label>
-                      {stickerPhoto && (
-                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                          Photo uploaded: {stickerPhoto.name} ({(stickerPhoto.size / 1024).toFixed(2)} KB)
+                  {availableStickers.length === 0 ? (
+                    <Grid item xs={12}>
+                      <Alert severity="warning" sx={{ borderRadius: 2 }}>
+                        <Typography variant="body2" fontWeight={600}>
+                          No Available Stickers
                         </Typography>
+                        <Typography variant="body2">
+                          You don't have any available stickers assigned. Please request stock from the manager first.
+                        </Typography>
+                      </Alert>
+                    </Grid>
+                  ) : (
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="Select Sticker Lot"
+                          value={selectedStickerStockId}
+                          onChange={(e) => {
+                            setSelectedStickerStockId(e.target.value);
+                            const selected = availableStickers.find((s) => s.id === e.target.value);
+                            if (selected) {
+                              setStickerNumber('');
+                            }
+                          }}
+                          helperText="Select from your assigned sticker lots"
+                        >
+                          {availableStickers.map((sticker) => (
+                            <MenuItem key={sticker.id} value={sticker.id}>
+                              {sticker.lotNumber} - {sticker.availableQuantity} available (Total: {sticker.quantity})
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      {selectedStickerStockId && (
+                        <>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Sticker Number (Optional)"
+                              value={stickerNumber}
+                              onChange={(e) => setStickerNumber(e.target.value)}
+                              placeholder="Enter specific sticker number if applicable"
+                              helperText="Track specific sticker number used for this job"
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Alert severity="info" sx={{ borderRadius: 2 }}>
+                              <Typography variant="body2">
+                                <strong>Selected:</strong> {availableStickers.find((s) => s.id === selectedStickerStockId)?.lotNumber}
+                                <br />
+                                <strong>Available:</strong> {availableStickers.find((s) => s.id === selectedStickerStockId)?.availableQuantity} sticker(s)
+                                <br />
+                                This sticker will be allocated to this job order for accountability and tracking.
+                              </Typography>
+                            </Alert>
+                          </Grid>
+                        </>
                       )}
-                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                        Take a photo of the sticker attached to equipment for accountability
-                      </Typography>
-                    </Box>
-                  </Grid>
+                      <Grid item xs={12}>
+                        <Box>
+                          <input
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            id="sticker-photo-upload"
+                            type="file"
+                            onChange={handleStickerPhotoChange}
+                            capture="environment"
+                          />
+                          <label htmlFor="sticker-photo-upload">
+                            <Button
+                              variant="outlined"
+                              component="span"
+                              fullWidth
+                              startIcon={<PhotoCameraIcon />}
+                              sx={{ height: '56px' }}
+                              disabled={!selectedStickerStockId}
+                            >
+                              {stickerPhoto ? `Photo: ${stickerPhoto.name}` : 'Upload Sticker Photo (Optional)'}
+                            </Button>
+                          </label>
+                          {stickerPhoto && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                              Photo uploaded: {stickerPhoto.name} ({(stickerPhoto.size / 1024).toFixed(2)} KB)
+                            </Typography>
+                          )}
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                            Take a photo of the sticker attached to equipment for accountability
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </>
+                  )}
                 </Grid>
               )}
             </Grid>

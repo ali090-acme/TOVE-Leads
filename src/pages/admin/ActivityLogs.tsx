@@ -415,7 +415,8 @@ export const ActivityLogs: React.FC = () => {
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.100' }}>
                 <TableCell sx={{ fontWeight: 600 }}>Timestamp</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>User</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Actual User (Logs)</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Displayed User (Front End)</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Action</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Entity</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
@@ -426,7 +427,7 @@ export const ActivityLogs: React.FC = () => {
             <TableBody>
               {filteredLogs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                     <Typography variant="body2" color="text.secondary">
                       No logs found matching the filters
                     </Typography>
@@ -447,6 +448,33 @@ export const ActivityLogs: React.FC = () => {
                       <Typography variant="caption" color="text.secondary">
                         {log.userRole || 'N/A'}
                       </Typography>
+                      {log.isDelegated && (
+                        <Chip
+                          label="Delegated"
+                          size="small"
+                          color="warning"
+                          sx={{ mt: 0.5, fontSize: '0.65rem', height: '18px' }}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {log.isDelegated && log.displayedUserName ? (
+                        <>
+                          <Typography variant="body2" fontWeight={600} color="primary">
+                            {log.displayedUserName}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {log.displayedUserRole || 'N/A'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                            (Displayed in UI)
+                          </Typography>
+                        </>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Same as actual user
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Chip
@@ -508,13 +536,24 @@ export const ActivityLogs: React.FC = () => {
                   <Typography variant="body2">{format(selectedLog.timestamp, 'PPpp')}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">User</Typography>
-                  <Typography variant="body2">{selectedLog.userName || 'System'}</Typography>
+                  <Typography variant="caption" color="text.secondary">Actual User (for accountability)</Typography>
+                  <Typography variant="body2" fontWeight={600}>{selectedLog.userName || 'System'}</Typography>
+                  {selectedLog.isDelegated && (
+                    <Chip label="Delegated Action" size="small" color="warning" sx={{ mt: 1 }} />
+                  )}
                 </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="caption" color="text.secondary">Role</Typography>
-                  <Typography variant="body2">{selectedLog.userRole || 'N/A'}</Typography>
-                </Grid>
+                {selectedLog.isDelegated && selectedLog.displayedUserName ? (
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="caption" color="text.secondary">Displayed User (shown in UI)</Typography>
+                    <Typography variant="body2" fontWeight={600} color="primary">{selectedLog.displayedUserName}</Typography>
+                    <Typography variant="caption" color="text.secondary">{selectedLog.displayedUserRole || 'N/A'}</Typography>
+                  </Grid>
+                ) : (
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="caption" color="text.secondary">Role</Typography>
+                    <Typography variant="body2">{selectedLog.userRole || 'N/A'}</Typography>
+                  </Grid>
+                )}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="caption" color="text.secondary">Action Type</Typography>
                   <Typography variant="body2">{selectedLog.actionType}</Typography>

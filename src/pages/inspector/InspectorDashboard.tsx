@@ -6,6 +6,7 @@ import {
   PendingActions as PendingIcon,
   Add as AddIcon,
   CalendarToday as CalendarIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material';
 import { StatsCard } from '@/components/common/StatsCard';
 import { DataTable, Column, getStatusChip } from '@/components/common/DataTable';
@@ -19,10 +20,69 @@ import { Alert, Chip } from '@mui/material';
 
 export const InspectorDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { jobOrders, currentUser } = useAppContext();
+  const { jobOrders, currentUser, users } = useAppContext();
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState(getSyncStatus());
   const [syncing, setSyncing] = useState(false);
+
+  // Load users from localStorage to get latest delegation data
+  const [localUsers, setLocalUsers] = React.useState<User[]>(() => {
+    const stored = localStorage.getItem('users');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        return parsed;
+      } catch (e) {
+        console.error('Failed to parse users from localStorage', e);
+        return users;
+      }
+    }
+    return users;
+  });
+
+  // Sync users from localStorage
+  React.useEffect(() => {
+    const loadUsers = () => {
+      const stored = localStorage.getItem('users');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setLocalUsers(parsed);
+        } catch (e) {
+          console.error('Failed to parse users from localStorage', e);
+        }
+      }
+    };
+
+    // Load on mount
+    loadUsers();
+
+    // Listen for storage changes (when delegation is updated)
+    window.addEventListener('storage', loadUsers);
+    // Listen for custom event when users are updated
+    window.addEventListener('usersUpdated', loadUsers);
+    
+    // Also check periodically (every 3 seconds)
+    const interval = setInterval(loadUsers, 3000);
+
+    return () => {
+      window.removeEventListener('storage', loadUsers);
+      window.removeEventListener('usersUpdated', loadUsers);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Check if current inspector is delegated to perform actions on behalf of someone
+  const activeDelegation = React.useMemo(() => {
+    if (!currentUser) return null;
+    
+    // Find if any user has delegated to this inspector
+    const delegatingUser = localUsers.find(
+      (u) => u.delegation?.active && u.delegation?.delegatedToId === currentUser.id
+    );
+    
+    return delegatingUser ? delegatingUser.delegation : null;
+  }, [currentUser, localUsers]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -143,6 +203,21 @@ export const InspectorDashboard: React.FC = () => {
           Manage your assigned job orders and submit inspection reports
         </Typography>
       </Box>
+
+      {/* Delegation Status */}
+      {activeDelegation && (
+        <Alert
+          severity="info"
+          icon={<SecurityIcon />}
+          sx={{ mb: 3, borderRadius: 2 }}
+        >
+          <Typography variant="body2">
+            <strong>Shadow Role Active:</strong> You are performing actions on behalf of{' '}
+            <strong>{activeDelegation.delegatedByName}</strong>. Your actions will appear as "{activeDelegation.delegatedByName}" 
+            in the front end, but activity logs will show your name ({currentUser?.name}) for accountability.
+          </Typography>
+        </Alert>
+      )}
 
       {/* Offline Queue Status */}
       {syncStatus.pendingItems > 0 && (

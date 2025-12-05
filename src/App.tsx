@@ -67,6 +67,7 @@ import { ManagerDashboard } from './pages/manager/ManagerDashboard';
 import { Analytics } from './pages/manager/Analytics';
 import { CertificateManagement } from './pages/manager/CertificateManagement';
 import { UserManagement } from './pages/manager/UserManagement';
+import { DelegationManagement } from './pages/manager/DelegationManagement';
 import { ActivityLogs } from './pages/admin/ActivityLogs';
 import { StickerManager } from './pages/admin/StickerManager';
 
@@ -675,6 +676,18 @@ function AppContent() {
                 onRoleChange={setCurrentRole}
               >
                 <CertificateManagement />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/manager/delegation"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <DelegationManagement />
               </MainLayout>
             }
           />

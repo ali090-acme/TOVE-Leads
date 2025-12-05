@@ -38,6 +38,17 @@ export interface UserPermissions {
   };
 }
 
+// Shadow Role/Delegation Interface
+export interface Delegation {
+  delegatedToId: string; // User ID who will perform the action
+  delegatedToName: string; // Name of the user performing action
+  delegatedBy: string; // User ID who delegated (technical manager)
+  delegatedByName: string; // Name of technical manager
+  active: boolean; // Whether delegation is currently active
+  startDate?: Date;
+  endDate?: Date;
+}
+
 // User Interface
 export interface User {
   id: string;
@@ -48,6 +59,7 @@ export interface User {
   employeeId?: string;
   department?: string;
   permissions?: UserPermissions; // User-specific permissions
+  delegation?: Delegation; // Shadow role delegation
 }
 
 // Client
@@ -82,6 +94,15 @@ export interface JobOrder {
   priority?: 'Low' | 'Medium' | 'High';
   amount?: number;
   paymentStatus?: 'Pending' | 'Confirmed' | 'Failed';
+  // Sticker allocation fields (for accountability and tracking)
+  stickerAllocation?: {
+    stickerId?: string; // ID of the sticker stock item used
+    stickerNumber?: string; // Specific sticker number used
+    stickerLotNumber?: string; // Lot number of the sticker
+    allocatedAt?: Date; // When sticker was allocated to this job
+    allocatedBy?: string; // User ID who allocated the sticker
+    stickerPhoto?: string; // Base64 photo of sticker attachment (for accountability)
+  };
   createdAt: Date;
   updatedAt: Date;
 }

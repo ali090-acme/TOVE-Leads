@@ -32,6 +32,7 @@ interface AppContextType {
 
   // Actions
   setCurrentUser: (user: User | null) => void;
+  setUsers: (users: User[]) => void;
   
   // Certificate actions
   verifyCertificate: (certificateNumber: string) => Certificate | null;
@@ -166,7 +167,33 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // Sync users to localStorage
   useEffect(() => {
     localStorage.setItem('users', JSON.stringify(users));
+    // Dispatch event when users are updated
+    window.dispatchEvent(new Event('usersUpdated'));
   }, [users]);
+
+  // Listen for users updates from other components
+  useEffect(() => {
+    const handleUsersUpdate = () => {
+      const stored = localStorage.getItem('users');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setUsers(parsed);
+          console.log('🔄 AppContext: Users updated from localStorage');
+        } catch (e) {
+          console.error('Failed to parse users from localStorage', e);
+        }
+      }
+    };
+
+    window.addEventListener('usersUpdated', handleUsersUpdate);
+    window.addEventListener('storage', handleUsersUpdate);
+
+    return () => {
+      window.removeEventListener('usersUpdated', handleUsersUpdate);
+      window.removeEventListener('storage', handleUsersUpdate);
+    };
+  }, []);
 
   // Load currentUser from localStorage on init
   const [currentUser, setCurrentUserState] = useState<User | null>(() => {
@@ -505,6 +532,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     users,
     currentUser,
     setCurrentUser,
+    setUsers,
     verifyCertificate,
     renewCertificate,
     createJobOrder,

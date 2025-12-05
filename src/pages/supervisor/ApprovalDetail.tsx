@@ -17,28 +17,89 @@ import {
   ListItem,
   ListItemText,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
-import { CheckCircle as ApproveIcon, Cancel as RejectIcon, Edit as ReviseIcon } from '@mui/icons-material';
+import { CheckCircle as ApproveIcon, Cancel as RejectIcon, Edit as ReviseIcon, Person as PersonIcon } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { mockJobOrders } from '@/utils/mockData';
 import { format } from 'date-fns';
 import { getStatusChip } from '@/components/common/DataTable';
+import { useAppContext } from '@/context/AppContext';
+import { logUserAction } from '@/utils/activityLogger';
 
 export const ApprovalDetail: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
+  const { currentUser, users, approveJobOrder, rejectJobOrder } = useAppContext();
   const jobOrder = mockJobOrders.find((job) => job.id === jobId);
 
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [reviseDialogOpen, setReviseDialogOpen] = useState(false);
   const [comments, setComments] = useState('');
+  const [useDelegation, setUseDelegation] = useState(false);
+  const [delegatedToUserId, setDelegatedToUserId] = useState('');
 
   if (!jobOrder) {
     return <Alert severity="error">Job order not found</Alert>;
   }
 
   const handleApprove = () => {
-    if (confirm('Are you sure you want to approve this report?')) {
+    if (!confirm('Are you sure you want to approve this report?')) return;
+
+    // Check if delegation is active
+    const delegation = currentUser?.delegation;
+    let actualUserId = currentUser?.id || '';
+    let actualUserName = currentUser?.name || '';
+    let actualUserRole = currentUser?.currentRole || currentUser?.roles[0] || '';
+    let displayedUserId = currentUser?.id || '';
+    let displayedUserName = currentUser?.name || '';
+    let displayedUserRole = currentUser?.currentRole || currentUser?.roles[0] || '';
+
+    if (useDelegation && delegatedToUserId) {
+      const delegatedToUser = users.find((u) => u.id === delegatedToUserId);
+      if (delegatedToUser) {
+        actualUserId = delegatedToUser.id;
+        actualUserName = delegatedToUser.name;
+        actualUserRole = delegatedToUser.currentRole || delegatedToUser.roles[0] || '';
+        displayedUserId = currentUser?.id || '';
+        displayedUserName = currentUser?.name || '';
+        displayedUserRole = currentUser?.currentRole || currentUser?.roles[0] || '';
+      }
+    } else if (delegation?.active) {
+      // Use existing delegation
+      const delegatedToUser = users.find((u) => u.id === delegation.delegatedToId);
+      if (delegatedToUser) {
+        actualUserId = delegatedToUser.id;
+        actualUserName = delegatedToUser.name;
+        actualUserRole = delegatedToUser.currentRole || delegatedToUser.roles[0] || '';
+        displayedUserId = currentUser?.id || '';
+        displayedUserName = currentUser?.name || '';
+        displayedUserRole = currentUser?.currentRole || currentUser?.roles[0] || '';
+      }
+    }
+
+    if (approveJobOrder && jobOrder) {
+      approveJobOrder(jobOrder.id);
+      
+      // Log with delegation info
+      logUserAction(
+        'APPROVE',
+        'JOB_ORDER',
+        jobOrder.id,
+        jobOrder.id,
+        `Job order approved: ${jobOrder.id}`,
+        { jobOrderId: jobOrder.id, clientName: jobOrder.clientName },
+        actualUserId,
+        actualUserName,
+        actualUserRole,
+        displayedUserId !== actualUserId ? displayedUserId : undefined,
+        displayedUserName !== actualUserName ? displayedUserName : undefined,
+        displayedUserRole !== actualUserRole ? displayedUserRole : undefined
+      );
+
       alert('Report approved successfully!');
       navigate('/supervisor');
     }
@@ -232,6 +293,60 @@ export const ApprovalDetail: React.FC = () => {
           </List>
         </CardContent>
       </Card>
+
+      {/* Delegation Option */}
+      {currentUser && (currentUser.roles.includes('supervisor') || currentUser.roles.includes('manager') || currentUser.roles.includes('gm')) && (
+        <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+          <CardContent sx={{ p: 4 }}>
+            <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
+              Shadow Role / Delegation
+            </Typography>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                If you have an active delegation, actions will be logged with the delegated user's name for accountability,
+                but will appear as your name in the front end.
+              </Typography>
+            </Alert>
+            {currentUser.delegation?.active ? (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  <strong>Active Delegation:</strong> Actions will be performed by {currentUser.delegation.delegatedToName},
+                  but will show as {currentUser.name} in the front end.
+                </Typography>
+              </Alert>
+            ) : (
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={useDelegation}
+                    onChange={(e) => setUseDelegation(e.target.checked)}
+                  />
+                }
+                label="Use delegation for this action"
+                sx={{ mb: 2 }}
+              />
+            )}
+            {useDelegation && !currentUser.delegation?.active && (
+              <FormControl fullWidth sx={{ mt: 2 }}>
+                <InputLabel>Select User to Delegate To</InputLabel>
+                <Select
+                  value={delegatedToUserId}
+                  onChange={(e) => setDelegatedToUserId(e.target.value)}
+                  label="Select User to Delegate To"
+                >
+                  {users
+                    .filter((u) => u.id !== currentUser?.id && (u.roles.includes('inspector') || u.roles.includes('trainer')))
+                    .map((user) => (
+                      <MenuItem key={user.id} value={user.id}>
+                        {user.name} ({user.email})
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Action Buttons */}
       <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>

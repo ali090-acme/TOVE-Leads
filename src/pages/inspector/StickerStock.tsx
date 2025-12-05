@@ -37,6 +37,8 @@ import {
 import { format } from 'date-fns';
 import { useAppContext } from '@/context/AppContext';
 import { logUserAction } from '@/utils/activityLogger';
+import { getStickerUsageForStock, getAvailableStickerQuantity } from '@/utils/stickerTracking';
+import { Link } from 'react-router-dom';
 
 interface StickerStockItem {
   id: string;
@@ -224,8 +226,13 @@ export const StickerStock: React.FC = () => {
   };
 
   const totalStock = stock.reduce((sum, s) => sum + s.quantity, 0);
-  const lowStockAlert = totalStock > 0 && totalStock < 20; // Only show low stock if stock exists but is low
-  const noStock = totalStock === 0; // Separate condition for no stock
+  const totalAvailable = stock.reduce((sum, s) => sum + getAvailableStickerQuantity(s.quantity, s.id), 0);
+  const totalUsed = stock.reduce((sum, s) => {
+    const usage = getStickerUsageForStock(s.id);
+    return sum + usage.filter((u) => u.status === 'Allocated' || u.status === 'Used').length;
+  }, 0);
+  const lowStockAlert = totalAvailable > 0 && totalAvailable < 20; // Only show low stock if stock exists but is low
+  const noStock = totalAvailable === 0; // Separate condition for no stock
   const pendingRequests = requests.filter((r) => r.status === 'Pending').length;
   
   // Filter requests based on selected filter
@@ -338,13 +345,13 @@ export const StickerStock: React.FC = () => {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
                   <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
-                    Total Stock Available
+                    Available Stickers
                   </Typography>
                   <Typography variant="h3" fontWeight={700}>
-                    {totalStock}
+                    {totalAvailable}
                   </Typography>
                   <Typography variant="caption" sx={{ opacity: 0.8, mt: 0.5, display: 'block' }}>
-                    Stickers
+                    {totalUsed} used / {totalStock} total
                   </Typography>
                 </Box>
                 <InventoryIcon sx={{ fontSize: 48, opacity: 0.3 }} />
@@ -471,9 +478,12 @@ export const StickerStock: React.FC = () => {
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.100' }}>
                 <TableCell sx={{ fontWeight: 600 }}>Lot Number</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Quantity</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Total Quantity</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Available</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Used/Allocated</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Issued Date</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Job Orders</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -486,28 +496,73 @@ export const StickerStock: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                stock.map((item) => (
-                  <TableRow key={item.id} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600}>
-                        {item.lotNumber}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body1" fontWeight={600}>
-                        {item.quantity}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{format(item.issuedDate, 'MMM dd, yyyy')}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={item.quantity > 0 ? 'Active' : 'Depleted'}
-                        size="small"
-                        color={item.quantity > 0 ? 'success' : 'default'}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
+                stock.map((item) => {
+                  const usage = getStickerUsageForStock(item.id);
+                  const allocatedOrUsed = usage.filter((u) => u.status === 'Allocated' || u.status === 'Used').length;
+                  const available = getAvailableStickerQuantity(item.quantity, item.id);
+                  
+                  return (
+                    <TableRow key={item.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>
+                          {item.lotNumber}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body1" fontWeight={600}>
+                          {item.quantity}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body1" fontWeight={600} color={available > 0 ? 'success.main' : 'error.main'}>
+                          {available}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {allocatedOrUsed} / {item.quantity}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{format(item.issuedDate, 'MMM dd, yyyy')}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={available > 0 ? 'Active' : 'Depleted'}
+                          size="small"
+                          color={available > 0 ? 'success' : 'default'}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {usage.length > 0 ? (
+                          <Box>
+                            {usage.slice(0, 2).map((u) => (
+                              <Link
+                                key={u.id}
+                                to={`/inspector/jobs/${u.jobOrderId}`}
+                                style={{ textDecoration: 'none', display: 'block', marginBottom: '4px' }}
+                              >
+                                <Chip
+                                  label={`Job: ${u.jobOrderNumber.substring(0, 12)}...`}
+                                  size="small"
+                                  color={u.status === 'Used' ? 'success' : 'info'}
+                                  sx={{ cursor: 'pointer' }}
+                                />
+                              </Link>
+                            ))}
+                            {usage.length > 2 && (
+                              <Typography variant="caption" color="text.secondary">
+                                +{usage.length - 2} more
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            Not used yet
+                          </Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
