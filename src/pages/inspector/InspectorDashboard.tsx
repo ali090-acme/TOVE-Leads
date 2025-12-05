@@ -11,7 +11,7 @@ import {
 import { StatsCard } from '@/components/common/StatsCard';
 import { DataTable, Column, getStatusChip } from '@/components/common/DataTable';
 import { useAppContext } from '@/context/AppContext';
-import { JobOrder } from '@/types';
+import { JobOrder, User } from '@/types';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { getSyncStatus, syncOfflineQueue, isOnline } from '@/utils/offlineQueue';

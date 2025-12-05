@@ -21,6 +21,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import { CheckCircle as ApproveIcon, Cancel as RejectIcon, Edit as ReviseIcon, Person as PersonIcon } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -319,7 +321,7 @@ export const ApprovalDetail: React.FC = () => {
                 control={
                   <Switch
                     checked={useDelegation}
-                    onChange={(e) => setUseDelegation(e.target.checked)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUseDelegation(e.target.checked)}
                   />
                 }
                 label="Use delegation for this action"
