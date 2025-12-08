@@ -575,7 +575,7 @@ const TagTable: React.FC<TagTableProps> = ({ tags }) => {
                   label={tag.status}
                   size="small"
                   color={getStatusColor(tag.status) as any}
-                  icon={getStatusIcon(tag.status)}
+                  icon={getStatusIcon(tag.status) || undefined}
                 />
               </TableCell>
               <TableCell>

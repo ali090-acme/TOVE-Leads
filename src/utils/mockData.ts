@@ -224,6 +224,7 @@ export const mockCertificates: Certificate[] = [
     documentNumber: 'DOC-025',
     stickerNumber: 'STK-025',
     documentType: 'Digital',
+    certificateFormat: 'A4',
     status: 'Valid',
   },
 ];

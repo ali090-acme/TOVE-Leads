@@ -50,7 +50,7 @@ import DialogContentText from '@mui/material/DialogContentText';
 export const JobOrderDetail: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { jobOrders, submitJobOrderReport } = useAppContext();
+  const { jobOrders, submitJobOrderReport, currentUser } = useAppContext();
   const jobOrder = useMemo(() => {
     return jobOrders.find((job) => job.id === jobId);
   }, [jobOrders, jobId]);

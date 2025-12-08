@@ -32,7 +32,7 @@ import {
 } from '@mui/material';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { useAppContext } from '@/context/AppContext';
-import { User, PermissionLevel, PermissionType } from '@/types';
+import { User, UserRole, PermissionLevel, PermissionType } from '@/types';
 import {
   Add as AddIcon,
   Edit as EditIcon,

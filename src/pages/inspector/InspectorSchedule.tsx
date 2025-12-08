@@ -443,7 +443,7 @@ export const InspectorSchedule: React.FC = () => {
                               {format(new Date(job.dateTime), 'hh:mm a')} • {job.location}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {job.serviceType}
+                              {job.serviceTypes.join(', ')}
                             </Typography>
                           </Box>
                         }

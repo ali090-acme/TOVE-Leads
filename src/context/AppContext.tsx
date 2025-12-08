@@ -211,7 +211,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }
       
       // If localStorage has different users (new IDs), sync from localStorage
-      const hasNewUsers = Array.from(storedIds).some((id: string) => !currentIds.has(id));
+      const hasNewUsers = Array.from<string>(storedIds).some((id) => !currentIds.has(id));
       if (hasNewUsers && storedUsers.length >= users.length) {
         setUsers(storedUsers);
         return;
@@ -536,13 +536,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   // Generate Certificate
-  const generateCertificate = (jobOrderId: string): Certificate | null => {
+  const generateCertificate = (jobOrderId: string, format?: 'A4' | 'Card'): Certificate | null => {
     try {
       const jobOrder = jobOrders.find((jo) => jo.id === jobOrderId);
       if (!jobOrder) return null;
 
       // Check if certificate already exists (for this job order and format)
-      const existingCert = certificates.find((c) => c.jobOrderId === jobOrderId && c.certificateFormat === format);
+      const certFormat = format || 'A4';
+      const existingCert = certificates.find((c) => c.jobOrderId === jobOrderId && c.certificateFormat === certFormat);
       if (existingCert) return existingCert;
 
       // Generate new certificate
@@ -571,7 +572,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         documentNumber: docNumber,
         stickerNumber: stickerNumber,
         documentType: 'Digital',
-        certificateFormat: format || 'A4', // A4 is mandatory/default, Card is optional
+        certificateFormat: certFormat, // A4 is mandatory/default, Card is optional
         status: 'Valid',
       };
 

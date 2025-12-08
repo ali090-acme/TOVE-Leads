@@ -202,7 +202,7 @@ export const syncOfflineQueue = async (): Promise<{ synced: number; failed: numb
         id: `JO-${new Date().getFullYear()}${String(existingJobOrders.length + 1).padStart(3, '0')}`,
         clientId: item.clientId,
         clientName: item.clientName,
-        serviceTypes: item.serviceTypes || (item.serviceType ? [item.serviceType as ServiceType] : []), // Support both old and new format
+        serviceTypes: item.serviceTypes || ((item as any).serviceType ? [(item as any).serviceType as ServiceType] : []), // Support both old and new format
         dateTime: item.dateTime,
         location: item.location,
         status: item.status,
