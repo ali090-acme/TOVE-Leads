@@ -199,9 +199,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
 
     try {
-      const storedUsers = JSON.parse(stored);
-      const storedIds = new Set(storedUsers.map((u: User) => u.id));
-      const currentIds = new Set(users.map((u) => u.id));
+      const storedUsers = JSON.parse(stored) as User[];
+      const storedIds = new Set<string>(storedUsers.map((u: User) => u.id));
+      const currentIds = new Set<string>(users.map((u) => u.id));
       
       // If localStorage has more users, it was updated externally (e.g., by UserManagement)
       // Sync from localStorage instead of overwriting
@@ -211,7 +211,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }
       
       // If localStorage has different users (new IDs), sync from localStorage
-      const hasNewUsers = Array.from<string>(storedIds).some((id) => !currentIds.has(id));
+      const hasNewUsers = Array.from(storedIds).some((id) => !currentIds.has(id));
       if (hasNewUsers && storedUsers.length >= users.length) {
         setUsers(storedUsers);
         return;
