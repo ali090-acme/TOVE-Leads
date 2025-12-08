@@ -198,7 +198,7 @@ export const JobOrderDetail: React.FC = () => {
     let success = false;
 
     if (removalType === 'sticker') {
-      success = reportStickerRemovalByJob(jobId, currentUser?.id || 'user-2');
+      success = reportStickerRemovalByJob(jobId, jobOrder?.assignedTo || 'user-2');
       if (success) {
         logUserAction(
           'UPDATE',
@@ -207,9 +207,9 @@ export const JobOrderDetail: React.FC = () => {
           'Sticker removal reported',
           `Sticker removed from equipment for job order ${jobId}`,
           { jobOrderId: jobId, type: 'sticker' },
-          currentUser?.id,
-          currentUser?.name,
-          currentUser?.currentRole
+          jobOrder?.assignedTo || 'user-2',
+          jobOrder?.assignedToName || 'Inspector',
+          'inspector'
         );
         setSnackbarMessage('Sticker removal reported successfully. System has been notified.');
         // Reload sticker usage
@@ -218,7 +218,7 @@ export const JobOrderDetail: React.FC = () => {
       }
     } else if (removalType === 'tag') {
       if (tagInfo) {
-        success = reportTagRemoval(tagInfo.id, currentUser?.id || 'user-2');
+        success = reportTagRemoval(tagInfo.id, jobOrder?.assignedTo || 'user-2');
         if (success) {
           logUserAction(
             'UPDATE',

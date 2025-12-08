@@ -459,7 +459,7 @@ export const TagManagement: React.FC = () => {
                     label={searchResult.status}
                     size="small"
                     color={getStatusColor(searchResult.status) as any}
-                    icon={getStatusIcon(searchResult.status)}
+                    icon={getStatusIcon(searchResult.status) || undefined}
                     sx={{ ml: 1 }}
                   />
                 </Typography>

@@ -366,7 +366,7 @@ export const InspectorSchedule: React.FC = () => {
                               <Typography variant="caption">{job.location}</Typography>
                             </Box>
                             <Typography variant="caption" color="text.secondary">
-                              {job.serviceType} • {job.id}
+                              {job.serviceTypes?.join(', ') || 'N/A'} • {job.id}
                             </Typography>
                           </Box>
                         }

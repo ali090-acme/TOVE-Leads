@@ -508,6 +508,7 @@ export const StickerManager: React.FC = () => {
       id: `stock-${Date.now()}`,
       lotId: selectedLot.id,
       lotNumber: selectedLot.lotNumber,
+      size: selectedLot.size, // Add size from lot
       assignedTo: assignedToId,
       assignedToName: assignedToName,
       assignedToEmail: assignedToEmail,

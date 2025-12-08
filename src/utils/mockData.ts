@@ -192,6 +192,7 @@ export const mockCertificates: Certificate[] = [
     documentNumber: 'DOC-001',
     stickerNumber: 'STK-001',
     documentType: 'Digital',
+    certificateFormat: 'A4',
     status: 'Valid',
   },
   {
@@ -207,6 +208,7 @@ export const mockCertificates: Certificate[] = [
     documentNumber: 'DOC-050',
     stickerNumber: 'STK-050',
     documentType: 'Physical',
+    certificateFormat: 'A4',
     status: 'Valid',
   },
   {

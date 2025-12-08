@@ -65,8 +65,8 @@ export const AttendanceResults: React.FC = () => {
       // Always use session.attendanceList (it should be updated from localStorage)
       setParticipants(session.attendanceList || []);
       
-      const initialAttendance = sessionParticipants.reduce(
-        (acc, p) => ({ ...acc, [p.id]: p.attendance }),
+      const initialAttendance = (session.attendanceList || []).reduce(
+        (acc: Record<string, 'Present' | 'Absent' | 'Pending'>, p: any) => ({ ...acc, [p.id]: p.attendance }),
         {} as Record<string, 'Present' | 'Absent' | 'Pending'>
       );
       setAttendance(initialAttendance);

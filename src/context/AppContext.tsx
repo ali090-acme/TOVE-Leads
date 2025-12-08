@@ -18,6 +18,7 @@ import {
   mockUsers,
 } from '@/utils/mockData';
 import { extractCertificateNumber } from '@/utils/verificationParser';
+import { format } from 'date-fns';
 
 interface AppContextType {
   // Data
@@ -210,7 +211,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }
       
       // If localStorage has different users (new IDs), sync from localStorage
-      const hasNewUsers = Array.from(storedIds).some(id => !currentIds.has(id));
+      const hasNewUsers = Array.from(storedIds).some((id: string) => !currentIds.has(id));
       if (hasNewUsers && storedUsers.length >= users.length) {
         setUsers(storedUsers);
         return;
@@ -406,7 +407,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           jo.id === jobOrderId
             ? {
                 ...jo,
-                status: 'Approved',
+                status: 'Approved' as const,
                 updatedAt: new Date(),
               }
             : jo
@@ -728,6 +729,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     generateCertificate,
     createTrainingSession,
     updateTrainingSession,
+    generateTrainingCertificates,
   }), [
     jobOrders, // When jobOrders changes, context value updates -> triggers re-renders
     certificates,
