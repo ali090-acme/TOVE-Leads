@@ -149,7 +149,7 @@ export const PaymentHistory: React.FC = () => {
         doc.text('Service', 20, y);
         doc.setFontSize(12);
         doc.setTextColor(0, 0, 0);
-        doc.text(jobOrder.serviceType, 20, y + 7);
+        doc.text(jobOrder.serviceTypes?.join(', ') || 'N/A', 20, y + 7);
         y += 15;
         
         doc.setFontSize(10);
@@ -334,7 +334,7 @@ export const PaymentHistory: React.FC = () => {
                         </Typography>
                         {jobOrder && (
                           <Typography variant="body2" color="text.secondary">
-                            {jobOrder.serviceType} - {jobOrder.location}
+                            {jobOrder.serviceTypes?.join(', ') || 'N/A'} - {jobOrder.location}
                           </Typography>
                         )}
                       </Grid>

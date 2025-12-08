@@ -52,6 +52,7 @@ import { ResultsList } from './pages/trainer/ResultsList';
 
 // Supervisor Pages
 import { SupervisorDashboard } from './pages/supervisor/SupervisorDashboard';
+import { CreateJobOrder as SupervisorCreateJobOrder } from './pages/supervisor/CreateJobOrder';
 import { ApprovalDetail } from './pages/supervisor/ApprovalDetail';
 import { ApprovalsList } from './pages/supervisor/ApprovalsList';
 import { TeamPerformance } from './pages/supervisor/TeamPerformance';
@@ -68,8 +69,10 @@ import { Analytics } from './pages/manager/Analytics';
 import { CertificateManagement } from './pages/manager/CertificateManagement';
 import { UserManagement } from './pages/manager/UserManagement';
 import { DelegationManagement } from './pages/manager/DelegationManagement';
+import { TagManagement } from './pages/manager/TagManagement';
 import { ActivityLogs } from './pages/admin/ActivityLogs';
 import { StickerManager } from './pages/admin/StickerManager';
+import { RegionManagement } from './pages/admin/RegionManagement';
 
 import { UserRole } from './types';
 
@@ -556,6 +559,18 @@ function AppContent() {
             }
           />
           <Route
+            path="/supervisor/jobs/create"
+            element={
+              <MainLayout
+                userRole="supervisor"
+                userRoles={['supervisor']}
+                onRoleChange={setCurrentRole}
+              >
+                <SupervisorCreateJobOrder />
+              </MainLayout>
+            }
+          />
+          <Route
             path="/supervisor/approvals/:jobId"
             element={
               <MainLayout
@@ -688,6 +703,30 @@ function AppContent() {
                 onRoleChange={setCurrentRole}
               >
                 <DelegationManagement />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/manager/regions"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <RegionManagement />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/manager/tags"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <TagManagement />
               </MainLayout>
             }
           />

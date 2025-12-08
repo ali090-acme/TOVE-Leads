@@ -20,9 +20,17 @@ export const JobOrdersList: React.FC = () => {
   }, []);
 
   // Filter jobs assigned to current inspector
-  const assignedJobs = jobOrders.filter((job) => 
-    job.assignedTo === currentUser?.id || job.assignedTo === 'user-2' // Fallback for mock data
-  );
+  const assignedJobs = jobOrders.filter((job) => {
+    // Check if assigned via assignedTo field (legacy/single assignment)
+    if (job.assignedTo === currentUser?.id || job.assignedTo === 'user-2') {
+      return true;
+    }
+    // Check if assigned via assignments object (multiple assignments support)
+    if (job.assignments?.inspector?.userId === currentUser?.id) {
+      return true;
+    }
+    return false;
+  });
 
   const columns: Column<JobOrder>[] = [
     { id: 'id', label: 'Job ID', minWidth: 120 },

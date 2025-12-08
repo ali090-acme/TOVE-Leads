@@ -1,9 +1,9 @@
-import React from 'react';
-import { Box, Typography, Grid, Card, CardContent, Avatar } from '@mui/material';
+import React, { useMemo } from 'react';
+import { Box, Typography, Grid, Card, CardContent, Avatar, Chip } from '@mui/material';
 import { PendingActions as PendingIcon, CheckCircle as ApprovedIcon, TrendingUp as PerformanceIcon } from '@mui/icons-material';
 import { StatsCard } from '@/components/common/StatsCard';
 import { DataTable, Column } from '@/components/common/DataTable';
-import { mockJobOrders } from '@/utils/mockData';
+import { useAppContext } from '@/context/AppContext';
 import { JobOrder } from '@/types';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -11,15 +11,38 @@ import { BarChart } from '@mui/x-charts/BarChart';
 
 export const SupervisorDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { jobOrders } = useAppContext();
 
-  const pendingApprovals = mockJobOrders.filter((job) => job.status === 'Completed');
-  const approvedThisMonth = mockJobOrders.filter((job) => job.status === 'Approved').length;
-  const approvalRate = Math.round((approvedThisMonth / mockJobOrders.length) * 100);
+  const pendingApprovals = useMemo(() => {
+    return jobOrders.filter((job) => job.status === 'Completed' || job.status === 'Pending');
+  }, [jobOrders]);
+  
+  const approvedThisMonth = useMemo(() => {
+    return jobOrders.filter((job) => job.status === 'Approved').length;
+  }, [jobOrders]);
+  
+  const approvalRate = useMemo(() => {
+    return jobOrders.length > 0 ? Math.round((approvedThisMonth / jobOrders.length) * 100) : 0;
+  }, [jobOrders.length, approvedThisMonth]);
 
   const columns: Column<JobOrder>[] = [
     { id: 'id', label: 'Job ID', minWidth: 120 },
     { id: 'assignedToName', label: 'Inspector/Trainer', minWidth: 150 },
-    { id: 'serviceType', label: 'Service Type', minWidth: 130 },
+    {
+      id: 'serviceTypes',
+      label: 'Service Types',
+      minWidth: 200,
+      format: (value: any) => {
+        if (!value || !Array.isArray(value)) return '-';
+        return (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {value.map((type: string) => (
+              <Chip key={type} label={type} size="small" color="primary" />
+            ))}
+          </Box>
+        );
+      },
+    },
     {
       id: 'dateTime',
       label: 'Submission Date',

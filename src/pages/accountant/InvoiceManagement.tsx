@@ -1,8 +1,8 @@
 import React from 'react';
-import { Box, Typography, Card, CardContent, Button } from '@mui/material';
+import { Box, Typography, Card, CardContent, Button, Chip } from '@mui/material';
 import { DataTable, Column, getStatusChip } from '@/components/common/DataTable';
 import { useAppContext } from '@/context/AppContext';
-import { JobOrder } from '@/types';
+import { JobOrder, ServiceType } from '@/types';
 import { format } from 'date-fns';
 import { Download as DownloadIcon } from '@mui/icons-material';
 
@@ -14,7 +14,21 @@ export const InvoiceManagement: React.FC = () => {
   const columns: Column<JobOrder>[] = [
     { id: 'id', label: 'Job ID', minWidth: 120 },
     { id: 'clientName', label: 'Client', minWidth: 170 },
-    { id: 'serviceType', label: 'Service Type', minWidth: 130 },
+    {
+      id: 'serviceTypes',
+      label: 'Service Types',
+      minWidth: 200,
+      format: (value: ServiceType[]) => {
+        if (!value || !Array.isArray(value)) return '-';
+        return (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {value.map((type) => (
+              <Chip key={type} label={type} size="small" color="primary" />
+            ))}
+          </Box>
+        );
+      },
+    },
     {
       id: 'amount',
       label: 'Amount',

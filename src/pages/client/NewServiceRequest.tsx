@@ -12,6 +12,13 @@ import {
   Alert,
   CircularProgress,
   Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  OutlinedInput,
+  Chip,
+  Checkbox,
+  ListItemText,
 } from '@mui/material';
 import { Send as SendIcon } from '@mui/icons-material';
 import { useAppContext } from '@/context/AppContext';
@@ -22,7 +29,7 @@ export const NewServiceRequest: React.FC = () => {
   const { createJobOrder, clients, currentUser } = useAppContext();
   
   const [formData, setFormData] = useState({
-    serviceType: '',
+    serviceTypes: [] as ServiceType[],
     location: '',
     preferredDate: '',
     description: '',
@@ -35,8 +42,8 @@ export const NewServiceRequest: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.serviceType) {
-      newErrors.serviceType = 'Service type is required';
+    if (formData.serviceTypes.length === 0) {
+      newErrors.serviceTypes = 'At least one service type is required';
     }
 
     if (!formData.location.trim()) {
@@ -79,7 +86,7 @@ export const NewServiceRequest: React.FC = () => {
       const newJobOrder = createJobOrder({
         clientId: currentUser?.id || 'client-1',
         clientName: currentUser?.name || clients[0]?.name || 'Client',
-        serviceType: formData.serviceType as ServiceType,
+        serviceTypes: formData.serviceTypes,
         dateTime: new Date(formData.preferredDate),
         location: formData.location,
         status: 'Pending',
@@ -98,7 +105,7 @@ export const NewServiceRequest: React.FC = () => {
 
       // Reset form
       setFormData({
-        serviceType: '',
+        serviceTypes: [],
         location: '',
         preferredDate: '',
         description: '',
@@ -143,26 +150,56 @@ export const NewServiceRequest: React.FC = () => {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                required
-                select
-                label="Service Type"
-                value={formData.serviceType}
-                onChange={(e) => {
-                  setFormData({ ...formData, serviceType: e.target.value });
-                  if (errors.serviceType) {
-                    setErrors({ ...errors, serviceType: '' });
-                  }
-                }}
-                error={!!errors.serviceType}
-                helperText={errors.serviceType}
-              >
-                <MenuItem value="Inspection">Equipment Inspection</MenuItem>
-                <MenuItem value="Assessment">Operator Assessment</MenuItem>
-                <MenuItem value="Training">Training Session</MenuItem>
-                <MenuItem value="NDT">NDT Testing</MenuItem>
-              </TextField>
+              <FormControl fullWidth required error={!!errors.serviceTypes}>
+                <InputLabel>Service Types</InputLabel>
+                <Select
+                  multiple
+                  value={formData.serviceTypes}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData({ 
+                      ...formData, 
+                      serviceTypes: typeof value === 'string' ? value.split(',') as ServiceType[] : value as ServiceType[]
+                    });
+                    if (errors.serviceTypes) {
+                      setErrors({ ...errors, serviceTypes: '' });
+                    }
+                  }}
+                  input={<OutlinedInput label="Service Types" />}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => (
+                        <Chip key={value} label={value} size="small" />
+                      ))}
+                    </Box>
+                  )}
+                >
+                  <MenuItem value="Inspection">
+                    <Checkbox checked={formData.serviceTypes.indexOf('Inspection') > -1} />
+                    <ListItemText primary="Equipment Inspection" />
+                  </MenuItem>
+                  <MenuItem value="Assessment">
+                    <Checkbox checked={formData.serviceTypes.indexOf('Assessment') > -1} />
+                    <ListItemText primary="Operator Assessment" />
+                  </MenuItem>
+                  <MenuItem value="Training">
+                    <Checkbox checked={formData.serviceTypes.indexOf('Training') > -1} />
+                    <ListItemText primary="Training Session" />
+                  </MenuItem>
+                  <MenuItem value="NDT">
+                    <Checkbox checked={formData.serviceTypes.indexOf('NDT') > -1} />
+                    <ListItemText primary="NDT Testing" />
+                  </MenuItem>
+                </Select>
+                {errors.serviceTypes && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                    {errors.serviceTypes}
+                  </Typography>
+                )}
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
+                  You can select multiple services (e.g., Inspection + Training)
+                </Typography>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} md={6}>

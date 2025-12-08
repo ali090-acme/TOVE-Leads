@@ -30,6 +30,8 @@ import {
   Inventory as InventoryIcon,
   CalendarToday as CalendarIcon,
   Security as SecurityIcon,
+  Label as LabelIcon,
+  Business as BusinessIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '@/types';
@@ -77,6 +79,7 @@ const navItems: NavItem[] = [
   
   // Supervisor Navigation
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/supervisor', roles: ['supervisor'] },
+  { text: 'Create Job Order', icon: <AddIcon />, path: '/supervisor/jobs/create', roles: ['supervisor'] },
   { text: 'Approval Queue', icon: <ApprovalIcon />, path: '/supervisor/approvals', roles: ['supervisor'] },
   { text: 'Team Performance', icon: <AnalyticsIcon />, path: '/supervisor/team', roles: ['supervisor'] },
   
@@ -90,7 +93,9 @@ const navItems: NavItem[] = [
   { text: 'Analytics', icon: <AnalyticsIcon />, path: '/manager/analytics', roles: ['manager', 'gm'] },
   { text: 'Certificates', icon: <CertificateIcon />, path: '/manager/certificates', roles: ['manager', 'gm'] },
   { text: 'User Management', icon: <PeopleIcon />, path: '/manager/users', roles: ['manager', 'gm'] },
+  { text: 'Region Management', icon: <BusinessIcon />, path: '/manager/regions', roles: ['manager', 'gm'] },
   { text: 'Delegation Management', icon: <SecurityIcon />, path: '/manager/delegation', roles: ['manager', 'gm'] },
+  { text: 'Tag Management', icon: <LabelIcon />, path: '/manager/tags', roles: ['manager', 'gm'] },
   { text: 'Activity Logs', icon: <ListIcon />, path: '/manager/activity-logs', roles: ['manager', 'gm'] },
   { text: 'Sticker Manager', icon: <InventoryIcon />, path: '/manager/stickers', roles: ['manager', 'gm'] },
 ];

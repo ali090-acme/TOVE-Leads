@@ -21,6 +21,10 @@ import {
   FormControlLabel,
   Grid,
   Divider,
+  Checkbox,
+  OutlinedInput,
+  ListItemText,
+  Avatar,
 } from '@mui/material';
 import {
   People as PeopleIcon,
@@ -38,7 +42,7 @@ export const DelegationManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>(contextUsers);
   const [delegationDialogOpen, setDelegationDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [delegatedToUserId, setDelegatedToUserId] = useState('');
+  const [delegatedToUserIds, setDelegatedToUserIds] = useState<string[]>([]); // Changed to array for multiple selection
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -72,37 +76,60 @@ export const DelegationManagement: React.FC = () => {
 
   const handleOpenDelegation = (user: User) => {
     setSelectedUser(user);
-    setDelegatedToUserId(user.delegation?.delegatedToId || '');
+    // Load existing delegates if any
+    const existingDelegates = user.delegation?.delegates?.map(d => d.userId) || [];
+    // Also check legacy field for backward compatibility
+    if (user.delegation?.delegatedToId && !existingDelegates.includes(user.delegation.delegatedToId)) {
+      existingDelegates.push(user.delegation.delegatedToId);
+    }
+    setDelegatedToUserIds(existingDelegates);
     setDelegationDialogOpen(true);
   };
 
   const handleSaveDelegation = () => {
-    if (!selectedUser || !delegatedToUserId) {
+    if (!selectedUser || delegatedToUserIds.length === 0) {
       setSnackbar({
         open: true,
-        message: 'Please select a user to delegate to',
+        message: 'Please select at least one user to delegate to',
         severity: 'error',
       });
       return;
     }
 
-    const delegatedToUser = users.find((u) => u.id === delegatedToUserId);
-    if (!delegatedToUser) {
+    // Get all selected delegate users
+    const delegatedToUsers = delegatedToUserIds
+      .map(id => users.find(u => u.id === id))
+      .filter((u): u is User => u !== undefined);
+
+    if (delegatedToUsers.length !== delegatedToUserIds.length) {
       setSnackbar({
         open: true,
-        message: 'Selected user not found',
+        message: 'Some selected users not found',
         severity: 'error',
       });
       return;
     }
+
+    // Create delegates array with priority order
+    const delegates = delegatedToUserIds.map((userId, index) => {
+      const user = delegatedToUsers.find(u => u.id === userId)!;
+      return {
+        userId,
+        userName: user.name,
+        priority: index + 1, // 1 = first shadow, 2 = second shadow, etc.
+        active: true,
+      };
+    });
 
     const delegation: Delegation = {
-      delegatedToId: delegatedToUserId,
-      delegatedToName: delegatedToUser.name,
+      delegates,
       delegatedBy: currentUser?.id || 'system',
       delegatedByName: currentUser?.name || 'System',
       active: true,
       startDate: new Date(),
+      // Legacy fields for backward compatibility
+      delegatedToId: delegates[0]?.userId,
+      delegatedToName: delegates[0]?.userName,
     };
 
     const updatedUser: User = {
@@ -114,29 +141,30 @@ export const DelegationManagement: React.FC = () => {
     saveUsers(updatedUsers);
 
     // Log delegation action
+    const delegateNames = delegates.map(d => d.userName).join(', ');
     logUserAction(
       'UPDATE',
       'USER',
       selectedUser.id,
       selectedUser.name,
-      `Delegation assigned: ${selectedUser.name} → ${delegatedToUser.name}`,
+      `Delegation assigned: ${selectedUser.name} → ${delegateNames} (${delegates.length} shadow${delegates.length > 1 ? 's' : ''})`,
       { delegation },
-      delegatedToUser.id, // Actual user (Fatima)
-      delegatedToUser.name, // Actual user name
-      delegatedToUser.currentRole || delegatedToUser.roles[0] || 'inspector',
-      selectedUser.id, // Displayed user (Salman)
+      delegates[0]?.userId || null, // Actual user (first delegate)
+      delegates[0]?.userName || null, // Actual user name
+      delegatedToUsers[0]?.currentRole || delegatedToUsers[0]?.roles[0] || 'inspector',
+      selectedUser.id, // Displayed user
       selectedUser.name, // Displayed user name
       selectedUser.currentRole || selectedUser.roles[0] || 'manager'
     );
 
     setSnackbar({
       open: true,
-      message: `Delegation assigned: ${delegatedToUser.name} will perform actions on behalf of ${selectedUser.name}`,
+      message: `Delegation assigned: ${delegateNames} will perform actions on behalf of ${selectedUser.name} (Priority: ${delegates.map(d => `${d.priority}. ${d.userName}`).join(', ')})`,
       severity: 'success',
     });
     setDelegationDialogOpen(false);
     setSelectedUser(null);
-    setDelegatedToUserId('');
+    setDelegatedToUserIds([]);
   };
 
   const handleRemoveDelegation = (user: User) => {
@@ -237,17 +265,39 @@ export const DelegationManagement: React.FC = () => {
                     </Box>
                     <Divider sx={{ my: 2 }} />
                     <Box sx={{ mb: 2 }}>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        Delegated To:
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                        Delegated To ({user.delegation?.delegates?.length || 1} shadow{user.delegation?.delegates?.length !== 1 ? 's' : ''}):
                       </Typography>
-                      <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
-                        {user.delegation?.delegatedToName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      {user.delegation?.delegates && user.delegation.delegates.length > 0 ? (
+                        user.delegation.delegates.map((delegate, idx) => (
+                          <Box key={delegate.userId} sx={{ mb: 1, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                            <Typography variant="body2" fontWeight={600}>
+                              {delegate.priority}. {delegate.userName}
+                              {delegate.priority === 1 && (
+                                <Chip label="Primary" size="small" color="primary" sx={{ ml: 1, height: 20 }} />
+                              )}
+                              {delegate.priority === 2 && (
+                                <Chip label="Secondary" size="small" color="secondary" sx={{ ml: 1, height: 20 }} />
+                              )}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {delegate.priority === 1 
+                                ? 'Will perform actions if available'
+                                : `Will perform actions if shadow ${delegate.priority - 1} is busy`}
+                            </Typography>
+                          </Box>
+                        ))
+                      ) : (
+                        // Legacy: show old single delegate format
+                        <Typography variant="body1" fontWeight={600} sx={{ mt: 0.5 }}>
+                          {user.delegation?.delegatedToName || 'N/A'}
+                        </Typography>
+                      )}
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                         Actions will show as "{user.name}" in front end
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                        Activity logs will show "{user.delegation?.delegatedToName}" for accountability
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                        Activity logs will show actual delegate's name for accountability
                       </Typography>
                     </Box>
                     <Button
@@ -310,9 +360,22 @@ export const DelegationManagement: React.FC = () => {
                     </Box>
                     {user.delegation?.active && (
                       <Box sx={{ mt: 2, p: 1.5, bgcolor: 'grey.50', borderRadius: 1 }}>
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          Delegated to: <strong>{user.delegation.delegatedToName}</strong>
-                        </Typography>
+                        {user.delegation.delegates && user.delegation.delegates.length > 0 ? (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                              Delegated to ({user.delegation.delegates.length} shadow{user.delegation.delegates.length !== 1 ? 's' : ''}):
+                            </Typography>
+                            {user.delegation.delegates.map((delegate) => (
+                              <Typography key={delegate.userId} variant="caption" color="text.secondary" display="block">
+                                {delegate.priority}. <strong>{delegate.userName}</strong>
+                              </Typography>
+                            ))}
+                          </Box>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Delegated to: <strong>{user.delegation.delegatedToName || 'N/A'}</strong>
+                          </Typography>
+                        )}
                       </Box>
                     )}
                   </Card>
@@ -328,7 +391,7 @@ export const DelegationManagement: React.FC = () => {
         onClose={() => {
           setDelegationDialogOpen(false);
           setSelectedUser(null);
-          setDelegatedToUserId('');
+          setDelegatedToUserIds([]);
         }}
         maxWidth="sm"
         fullWidth
@@ -363,25 +426,85 @@ export const DelegationManagement: React.FC = () => {
               </Alert>
 
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Select User to Delegate To</InputLabel>
+                <InputLabel>Select Users to Delegate To (Multiple Selection)</InputLabel>
                 <Select
-                  value={delegatedToUserId}
-                  onChange={(e) => setDelegatedToUserId(e.target.value)}
-                  label="Select User to Delegate To"
+                  multiple
+                  value={delegatedToUserIds}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDelegatedToUserIds(typeof value === 'string' ? value.split(',') : value);
+                  }}
+                  input={<OutlinedInput label="Select Users to Delegate To (Multiple Selection)" />}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {(selected as string[]).map((userId) => {
+                        const user = availableDelegates.find((u) => u.id === userId);
+                        const index = delegatedToUserIds.indexOf(userId);
+                        return (
+                          <Chip
+                            key={userId}
+                            label={`${index + 1}. ${user?.name || userId}`}
+                            size="small"
+                            color={index === 0 ? 'primary' : index === 1 ? 'secondary' : 'default'}
+                          />
+                        );
+                      })}
+                    </Box>
+                  )}
                 >
                   {availableDelegates.map((user) => (
                     <MenuItem key={user.id} value={user.id}>
-                      {user.name} ({user.email}) - {user.roles.join(', ')}
+                      <Checkbox checked={delegatedToUserIds.indexOf(user.id) > -1} />
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Avatar sx={{ width: 24, height: 24, fontSize: 12 }}>
+                              {user.name.split(' ').map((n) => n[0]).join('')}
+                            </Avatar>
+                            {user.name}
+                            {delegatedToUserIds.indexOf(user.id) === 0 && (
+                              <Chip label="1st Shadow" size="small" color="primary" sx={{ height: 20, ml: 'auto' }} />
+                            )}
+                            {delegatedToUserIds.indexOf(user.id) === 1 && (
+                              <Chip label="2nd Shadow" size="small" color="secondary" sx={{ height: 20, ml: 'auto' }} />
+                            )}
+                            {delegatedToUserIds.indexOf(user.id) > 1 && (
+                              <Chip 
+                                label={`${delegatedToUserIds.indexOf(user.id) + 1}rd Shadow`} 
+                                size="small" 
+                                sx={{ height: 20, ml: 'auto' }} 
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={`${user.email} - ${user.roles.join(', ')}`}
+                      />
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
 
-              {delegatedToUserId && (
-                <Alert severity="warning" sx={{ mt: 2 }}>
-                  <Typography variant="body2">
-                    <strong>Note:</strong> The selected user will be able to perform actions on behalf of {selectedUser.name}.
-                    All actions will be logged with the actual user's name for accountability.
+              {delegatedToUserIds.length > 0 && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Dual Shadow System:</strong>
+                  </Typography>
+                  <Typography variant="body2" component="div">
+                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                      {delegatedToUserIds.map((userId, index) => {
+                        const user = availableDelegates.find((u) => u.id === userId);
+                        return (
+                          <li key={userId}>
+                            <strong>Shadow {index + 1}:</strong> {user?.name} 
+                            {index === 0 && ' (Primary - will perform actions if available)'}
+                            {index > 0 && ` (Will perform actions if Shadow ${index} is busy)`}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    All actions will be logged with the actual delegate's name for accountability, but will show as "{selectedUser.name}" in the front end.
                   </Typography>
                 </Alert>
               )}
@@ -394,7 +517,7 @@ export const DelegationManagement: React.FC = () => {
             onClick={() => {
               setDelegationDialogOpen(false);
               setSelectedUser(null);
-              setDelegatedToUserId('');
+              setDelegatedToUserIds([]);
             }}
             variant="outlined"
           >
@@ -404,9 +527,9 @@ export const DelegationManagement: React.FC = () => {
             onClick={handleSaveDelegation}
             variant="contained"
             color="primary"
-            disabled={!delegatedToUserId}
+            disabled={delegatedToUserIds.length === 0}
           >
-            Assign Delegation
+            Assign Delegation{delegatedToUserIds.length > 1 ? ` (${delegatedToUserIds.length} shadows)` : ''}
           </Button>
         </DialogActions>
       </Dialog>

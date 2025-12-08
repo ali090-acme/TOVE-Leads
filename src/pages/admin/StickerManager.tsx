@@ -63,6 +63,7 @@ interface StickerStock {
   id: string;
   lotId: string;
   lotNumber: string;
+  size: string; // Sticker size (Large or Small)
   assignedTo: string;
   assignedToName: string;
   assignedToEmail?: string; // Added for better matching
@@ -198,7 +199,7 @@ export const StickerManager: React.FC = () => {
         {
           id: 'lot-2',
           lotNumber: 'LOT-2025-002',
-          size: 'Medium',
+          size: 'Large',
           quantity: 500,
           issuedQuantity: 200,
           availableQuantity: 300,
@@ -310,6 +311,7 @@ export const StickerManager: React.FC = () => {
       id: `stock-${Date.now()}`,
       lotId: issueData.lotId,
       lotNumber: lot.lotNumber,
+      size: lot.size, // Copy size from lot
       assignedTo: issueData.assignedTo,
       assignedToName: assignedUser?.name || 'Unknown',
       assignedToEmail: assignedUser?.email || undefined, // Store email for better matching
@@ -965,9 +967,8 @@ export const StickerManager: React.FC = () => {
                   label="Size"
                   onChange={(e) => setNewLot({ ...newLot, size: e.target.value })}
                 >
-                  <MenuItem value="Small">Small</MenuItem>
-                  <MenuItem value="Medium">Medium</MenuItem>
                   <MenuItem value="Large">Large</MenuItem>
+                  <MenuItem value="Small">Small</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

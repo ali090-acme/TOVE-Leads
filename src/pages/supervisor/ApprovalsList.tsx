@@ -1,5 +1,5 @@
-import React from 'react';
-import { Box, Typography, Card, CardContent } from '@mui/material';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Box, Typography, Card, CardContent, Chip } from '@mui/material';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { useAppContext } from '@/context/AppContext';
 import { JobOrder } from '@/types';
@@ -9,13 +9,43 @@ import { useNavigate } from 'react-router-dom';
 export const ApprovalsList: React.FC = () => {
   const navigate = useNavigate();
   const { jobOrders } = useAppContext();
+  const [, forceUpdate] = useState({});
 
-  const pendingApprovals = jobOrders.filter((job) => job.status === 'Completed');
+  // Listen for jobOrders updates
+  useEffect(() => {
+    const handleUpdate = () => {
+      forceUpdate({});
+    };
+    window.addEventListener('jobOrdersUpdated', handleUpdate);
+    return () => window.removeEventListener('jobOrdersUpdated', handleUpdate);
+  }, []);
+
+  // Show job orders that need approval: Pending (newly created) or Completed (report submitted)
+  // useMemo ensures re-render when jobOrders changes
+  const pendingApprovals = useMemo(() => {
+    return jobOrders.filter((job) => 
+      job.status === 'Pending' || job.status === 'Completed'
+    );
+  }, [jobOrders]);
 
   const columns: Column<JobOrder>[] = [
     { id: 'id', label: 'Job ID', minWidth: 120 },
     { id: 'assignedToName', label: 'Inspector/Trainer', minWidth: 150 },
-    { id: 'serviceType', label: 'Service Type', minWidth: 130 },
+    {
+      id: 'serviceTypes',
+      label: 'Service Types',
+      minWidth: 200,
+      format: (value: any) => {
+        if (!value || !Array.isArray(value)) return '-';
+        return (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {value.map((type: string) => (
+              <Chip key={type} label={type} size="small" color="primary" />
+            ))}
+          </Box>
+        );
+      },
+    },
     {
       id: 'dateTime',
       label: 'Submission Date',

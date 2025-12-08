@@ -25,6 +25,10 @@ import {
   Chip,
   FormControl,
   InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { 
   Send as SendIcon,
@@ -40,7 +44,7 @@ import { format } from 'date-fns';
 export const AttendanceResults: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
-  const { trainingSessions, currentUser } = useAppContext();
+  const { trainingSessions, currentUser, updateTrainingSession } = useAppContext();
   
   const session = trainingSessions.find((s) => s.id === sessionId);
 
@@ -51,11 +55,17 @@ export const AttendanceResults: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [newParticipant, setNewParticipant] = useState({ name: '', employeeId: '' });
+  const [participants, setParticipants] = useState<Participant[]>([]);
 
   // Initialize state from session data
   useEffect(() => {
     if (session) {
-      const initialAttendance = session.attendanceList.reduce(
+      // Always use session.attendanceList (it should be updated from localStorage)
+      setParticipants(session.attendanceList || []);
+      
+      const initialAttendance = sessionParticipants.reduce(
         (acc, p) => ({ ...acc, [p.id]: p.attendance }),
         {} as Record<string, 'Present' | 'Absent' | 'Pending'>
       );
@@ -134,7 +144,7 @@ export const AttendanceResults: React.FC = () => {
     presentParticipants.forEach(([id]) => {
       const assessment = assessments[id];
       if (!assessment || !assessment.outcome || assessment.outcome === 'Pending') {
-        const participant = session.attendanceList.find((p) => p.id === id);
+        const participant = participants.find((p) => p.id === id);
         newErrors[id] = `${participant?.name || 'Participant'}: Assessment outcome required`;
       }
     });
@@ -193,7 +203,7 @@ export const AttendanceResults: React.FC = () => {
 
       // Update training session (mock - in real app, this would be API call)
       const updatedAssessmentResults: AssessmentResult[] = Object.entries(assessments).map(([participantId, assessment]) => {
-        const participant = session.attendanceList.find((p) => p.id === participantId);
+        const participant = participants.find((p) => p.id === participantId);
         return {
           participantId,
           participantName: participant?.name || 'Unknown',
@@ -202,24 +212,37 @@ export const AttendanceResults: React.FC = () => {
         };
       });
 
-      // Update localStorage (mock - in real app, this would be API call)
-      const existingSessions = JSON.parse(localStorage.getItem('trainingSessions') || '[]');
-      const updatedSessions = existingSessions.map((s: any) => {
-        if (s.id === session.id) {
-          return {
-            ...s,
-            assessmentResults: updatedAssessmentResults,
-            attendanceList: session.attendanceList.map((p) => ({
-              ...p,
-              attendance: attendance[p.id] || p.attendance,
-            })),
-            status: 'Completed',
-            approvalStatus: 'Pending',
-          };
-        }
-        return s;
-      });
-      localStorage.setItem('trainingSessions', JSON.stringify(updatedSessions));
+      // Update training session using AppContext
+      if (updateTrainingSession) {
+        updateTrainingSession(session.id, {
+          assessmentResults: updatedAssessmentResults,
+          attendanceList: participants.map((p) => ({
+            ...p,
+            attendance: attendance[p.id] || p.attendance,
+          })),
+          status: 'Completed',
+          approvalStatus: 'Pending',
+        });
+      } else {
+        // Fallback: Update localStorage directly
+        const existingSessions = JSON.parse(localStorage.getItem('trainingSessions') || '[]');
+        const updatedSessions = existingSessions.map((s: any) => {
+          if (s.id === session.id) {
+            return {
+              ...s,
+              assessmentResults: updatedAssessmentResults,
+              attendanceList: participants.map((p) => ({
+                ...p,
+                attendance: attendance[p.id] || p.attendance,
+              })),
+              status: 'Completed',
+              approvalStatus: 'Pending',
+            };
+          }
+          return s;
+        });
+        localStorage.setItem('trainingSessions', JSON.stringify(updatedSessions));
+      }
 
       // Clear draft
       localStorage.removeItem(`training-draft-${session.id}`);
@@ -323,7 +346,7 @@ export const AttendanceResults: React.FC = () => {
                 Total Participants
               </Typography>
               <Typography variant="body1" fontWeight={500}>
-                {session.attendanceList.length}
+                {participants.length}
               </Typography>
             </Grid>
           </Grid>
@@ -340,24 +363,40 @@ export const AttendanceResults: React.FC = () => {
           }}
         />
         <CardContent sx={{ p: 4 }}>
-          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
-            Attendance & Assessment
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6" gutterBottom fontWeight={600}>
+              Attendance & Assessment
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setShowAddParticipant(true)}
+            >
+              Add Participant
+            </Button>
+          </Box>
           <Divider sx={{ mb: 3 }} />
-          <TableContainer component={Paper} variant="outlined">
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Participant Name</TableCell>
-                  <TableCell>Employee ID</TableCell>
-                  <TableCell align="center">Present</TableCell>
-                  <TableCell align="center">Absent</TableCell>
-                  <TableCell>Assessment Outcome</TableCell>
-                  <TableCell>Score (%)</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {session.attendanceList.map((participant) => (
+          
+          {participants.length === 0 ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              No participants added yet. Click "Add Participant" to add participants to this training session.
+            </Alert>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Participant Name</TableCell>
+                    <TableCell>Employee ID</TableCell>
+                    <TableCell align="center">Present</TableCell>
+                    <TableCell align="center">Absent</TableCell>
+                    <TableCell>Assessment Outcome</TableCell>
+                    <TableCell>Score (%)</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {participants.map((participant) => (
                   <TableRow key={participant.id}>
                     <TableCell>{participant.name}</TableCell>
                     <TableCell>{participant.employeeId || 'N/A'}</TableCell>
@@ -427,11 +466,40 @@ export const AttendanceResults: React.FC = () => {
                         helperText={assessments[participant.id]?.outcome === 'Pass' ? 'Optional' : 'Only for Pass'}
                       />
                     </TableCell>
+                    <TableCell align="center">
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={() => {
+                          const updatedParticipants = participants.filter((p) => p.id !== participant.id);
+                          setParticipants(updatedParticipants);
+                          const newAttendance = { ...attendance };
+                          delete newAttendance[participant.id];
+                          setAttendance(newAttendance);
+                          const newAssessments = { ...assessments };
+                          delete newAssessments[participant.id];
+                          setAssessments(newAssessments);
+                          
+                          // Save updated participants to training session immediately
+                          if (session && updateTrainingSession) {
+                            updateTrainingSession(session.id, {
+                              attendanceList: updatedParticipants.map((p) => ({
+                                ...p,
+                                attendance: newAttendance[p.id] || p.attendance,
+                              })),
+                            });
+                          }
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </TableContainer>
+          )}
         </CardContent>
       </Card>
 
@@ -603,6 +671,68 @@ export const AttendanceResults: React.FC = () => {
           </Box>
         </CardContent>
       </Card>
+
+      {/* Add Participant Dialog */}
+      <Dialog open={showAddParticipant} onClose={() => setShowAddParticipant(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Participant</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Participant Name *"
+            value={newParticipant.name}
+            onChange={(e) => setNewParticipant({ ...newParticipant, name: e.target.value })}
+            sx={{ mb: 2, mt: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Employee ID"
+            value={newParticipant.employeeId}
+            onChange={(e) => setNewParticipant({ ...newParticipant, employeeId: e.target.value })}
+            sx={{ mb: 2 }}
+            placeholder="Optional"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setShowAddParticipant(false);
+            setNewParticipant({ name: '', employeeId: '' });
+          }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (newParticipant.name.trim()) {
+                const newPart: Participant = {
+                  id: `p-${Date.now()}`,
+                  name: newParticipant.name.trim(),
+                  employeeId: newParticipant.employeeId.trim() || undefined,
+                  attendance: 'Pending',
+                };
+                const updatedParticipants = [...participants, newPart];
+                setParticipants(updatedParticipants);
+                setAttendance({ ...attendance, [newPart.id]: 'Pending' });
+                
+                // Save participants to training session immediately
+                if (session && updateTrainingSession) {
+                  updateTrainingSession(session.id, {
+                    attendanceList: updatedParticipants.map((p) => ({
+                      ...p,
+                      attendance: attendance[p.id] || p.attendance,
+                    })),
+                  });
+                }
+                
+                setNewParticipant({ name: '', employeeId: '' });
+                setShowAddParticipant(false);
+              }
+            }}
+            disabled={!newParticipant.name.trim()}
+          >
+            Add
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={snackbar.open}

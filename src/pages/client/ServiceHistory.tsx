@@ -23,7 +23,7 @@ import {
 } from '@mui/icons-material';
 import { DataTable, Column, getStatusChip } from '@/components/common/DataTable';
 import { useAppContext } from '@/context/AppContext';
-import { JobOrder, JobOrderStatus } from '@/types';
+import { JobOrder, JobOrderStatus, ServiceType } from '@/types';
 import { format, startOfWeek, startOfMonth, subDays, isWithinInterval } from 'date-fns';
 
 export const ServiceHistory: React.FC = () => {
@@ -101,7 +101,21 @@ export const ServiceHistory: React.FC = () => {
 
   const columns: Column<JobOrder>[] = [
     { id: 'id', label: 'Job ID', minWidth: 120 },
-    { id: 'serviceType', label: 'Service Type', minWidth: 130 },
+    {
+      id: 'serviceTypes',
+      label: 'Service Types',
+      minWidth: 200,
+      format: (value: ServiceType[]) => {
+        if (!value || !Array.isArray(value)) return '-';
+        return (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {value.map((type) => (
+              <Chip key={type} label={type} size="small" color="primary" />
+            ))}
+          </Box>
+        );
+      },
+    },
     {
       id: 'status',
       label: 'Status',

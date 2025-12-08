@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Typography, Grid, Card, CardContent, Button, Skeleton, Avatar } from '@mui/material';
 import {
   Assignment as JobIcon,
@@ -11,7 +11,7 @@ import {
 import { StatsCard } from '@/components/common/StatsCard';
 import { DataTable, Column, getStatusChip } from '@/components/common/DataTable';
 import { useAppContext } from '@/context/AppContext';
-import { JobOrder, User } from '@/types';
+import { JobOrder, User, ServiceType } from '@/types';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { getSyncStatus, syncOfflineQueue, isOnline } from '@/utils/offlineQueue';
@@ -24,6 +24,16 @@ export const InspectorDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState(getSyncStatus());
   const [syncing, setSyncing] = useState(false);
+  const [, forceUpdate] = useState({});
+
+  // Listen for jobOrders updates
+  useEffect(() => {
+    const handleUpdate = () => {
+      forceUpdate({});
+    };
+    window.addEventListener('jobOrdersUpdated', handleUpdate);
+    return () => window.removeEventListener('jobOrdersUpdated', handleUpdate);
+  }, []);
 
   // Load users from localStorage to get latest delegation data
   const [localUsers, setLocalUsers] = React.useState<User[]>(() => {
@@ -76,12 +86,34 @@ export const InspectorDashboard: React.FC = () => {
   const activeDelegation = React.useMemo(() => {
     if (!currentUser) return null;
     
-    // Find if any user has delegated to this inspector
-    const delegatingUser = localUsers.find(
-      (u) => u.delegation?.active && u.delegation?.delegatedToId === currentUser.id
+    // Find if any user has delegated to this inspector (check multiple delegates)
+    const delegatingUser = localUsers.find((u) => {
+      if (!u.delegation?.active) return false;
+      
+      // Check new delegates array
+      if (u.delegation.delegates && u.delegation.delegates.length > 0) {
+        return u.delegation.delegates.some(
+          (delegate) => delegate.userId === currentUser.id && delegate.active
+        );
+      }
+      
+      // Legacy: check old delegatedToId field for backward compatibility
+      return u.delegation.delegatedToId === currentUser.id;
+    });
+    
+    if (!delegatingUser || !delegatingUser.delegation) return null;
+    
+    // Find which delegate this user is (priority)
+    const delegateInfo = delegatingUser.delegation.delegates?.find(
+      (d) => d.userId === currentUser.id
     );
     
-    return delegatingUser ? delegatingUser.delegation : null;
+    return {
+      ...delegatingUser.delegation,
+      delegatingUserName: delegatingUser.name,
+      currentDelegatePriority: delegateInfo?.priority || 1,
+      isPrimaryShadow: delegateInfo?.priority === 1,
+    };
   }, [currentUser, localUsers]);
 
   useEffect(() => {
@@ -131,18 +163,32 @@ export const InspectorDashboard: React.FC = () => {
     }
   };
 
-  // Filter job orders for current inspector
-  const assignedJobs = jobOrders.filter(
-    (job) => job.assignedTo === currentUser?.id || job.assignedTo === 'user-2' // Fallback for mock data
-  );
+  // Filter job orders for current inspector - useMemo to ensure re-render on jobOrders change
+  const assignedJobs = useMemo(() => {
+    return jobOrders.filter((job) => {
+      // Check if assigned via assignedTo field (legacy/single assignment)
+      if (job.assignedTo === currentUser?.id || job.assignedTo === 'user-2') {
+        return true;
+      }
+      // Check if assigned via assignments object (multiple assignments support)
+      if (job.assignments?.inspector?.userId === currentUser?.id) {
+        return true;
+      }
+      return false;
+    });
+  }, [jobOrders, currentUser?.id]);
 
-  const completedThisWeek = assignedJobs.filter(
-    (job) => job.status === 'Completed' || job.status === 'Approved'
-  ).length;
+  const completedThisWeek = useMemo(() => {
+    return assignedJobs.filter(
+      (job) => job.status === 'Completed' || job.status === 'Approved'
+    ).length;
+  }, [assignedJobs]);
 
-  const pendingApproval = assignedJobs.filter(
-    (job) => job.status === 'Completed'
-  ).length;
+  const pendingApproval = useMemo(() => {
+    return assignedJobs.filter(
+      (job) => job.status === 'Completed'
+    ).length;
+  }, [assignedJobs]);
 
   if (loading) {
     return (
@@ -164,7 +210,21 @@ export const InspectorDashboard: React.FC = () => {
   const columns: Column<JobOrder>[] = [
     { id: 'id', label: 'Job ID', minWidth: 120 },
     { id: 'clientName', label: 'Client Name', minWidth: 170 },
-    { id: 'serviceType', label: 'Service Type', minWidth: 130 },
+    {
+      id: 'serviceTypes',
+      label: 'Service Types',
+      minWidth: 200,
+      format: (value: ServiceType[]) => {
+        if (!value || !Array.isArray(value)) return '-';
+        return (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {value.map((type) => (
+              <Chip key={type} label={type} size="small" color="primary" />
+            ))}
+          </Box>
+        );
+      },
+    },
     {
       id: 'status',
       label: 'Status',
@@ -213,7 +273,15 @@ export const InspectorDashboard: React.FC = () => {
         >
           <Typography variant="body2">
             <strong>Shadow Role Active:</strong> You are performing actions on behalf of{' '}
-            <strong>{activeDelegation.delegatedByName}</strong>. Your actions will appear as "{activeDelegation.delegatedByName}" 
+            <strong>{(activeDelegation as any).delegatingUserName || activeDelegation.delegatedByName}</strong>.
+            {activeDelegation.delegates && activeDelegation.delegates.length > 1 && (
+              <> You are <strong>Shadow {(activeDelegation as any).currentDelegatePriority || 1}</strong>
+                {(activeDelegation as any).isPrimaryShadow 
+                  ? ' (Primary - will perform actions if available)' 
+                  : ` (Will perform actions if Shadow ${((activeDelegation as any).currentDelegatePriority || 1) - 1} is busy)`}
+              </>
+            )}
+            {' '}Your actions will appear as "{(activeDelegation as any).delegatingUserName || activeDelegation.delegatedByName}" 
             in the front end, but activity logs will show your name ({currentUser?.name}) for accountability.
           </Typography>
         </Alert>

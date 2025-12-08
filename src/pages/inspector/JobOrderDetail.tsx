@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -19,6 +19,7 @@ import {
   ListItemText,
   Snackbar,
   CircularProgress,
+  Chip,
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
@@ -31,12 +32,28 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { format } from 'date-fns';
 import { getStatusChip } from '@/components/common/DataTable';
+import { getStickerUsageForJob, reportStickerRemovalByJob } from '@/utils/stickerTracking';
+import { getTagForJob, reportTagRemoval } from '@/utils/tagTracking';
+import { logUserAction } from '@/utils/activityLogger';
+import {
+  Warning as WarningIcon,
+  Label as LabelIcon,
+  Inventory as InventoryIcon,
+  ReportProblem as ReportIcon,
+} from '@mui/icons-material';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContentText from '@mui/material/DialogContentText';
 
 export const JobOrderDetail: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
   const { jobOrders, submitJobOrderReport } = useAppContext();
-  const jobOrder = jobOrders.find((job) => job.id === jobId);
+  const jobOrder = useMemo(() => {
+    return jobOrders.find((job) => job.id === jobId);
+  }, [jobOrders, jobId]);
 
   const [formData, setFormData] = useState({
     equipmentSerial: '',
@@ -54,6 +71,12 @@ export const JobOrderDetail: React.FC = () => {
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
+  
+  // Sticker and Tag removal states
+  const [stickerUsage, setStickerUsage] = React.useState<any>(null);
+  const [tagInfo, setTagInfo] = React.useState<any>(null);
+  const [removalDialogOpen, setRemovalDialogOpen] = useState(false);
+  const [removalType, setRemovalType] = useState<'sticker' | 'tag' | null>(null);
 
   if (!jobOrder) {
     return (
@@ -140,7 +163,7 @@ export const JobOrderDetail: React.FC = () => {
     }, 1500);
   };
 
-  // Load draft on mount
+  // Load draft and sticker/tag info on mount
   React.useEffect(() => {
     const draft = localStorage.getItem(`draft-${jobId}`);
     if (draft) {
@@ -153,7 +176,79 @@ export const JobOrderDetail: React.FC = () => {
         console.error('Error loading draft:', e);
       }
     }
+    
+    // Load sticker and tag allocation info
+    if (jobId) {
+      const usage = getStickerUsageForJob(jobId);
+      setStickerUsage(usage);
+      
+      const tag = getTagForJob(jobId);
+      setTagInfo(tag);
+    }
   }, [jobId]);
+
+  const handleReportRemoval = (type: 'sticker' | 'tag') => {
+    setRemovalType(type);
+    setRemovalDialogOpen(true);
+  };
+
+  const confirmRemoval = () => {
+    if (!jobId || !removalType) return;
+
+    let success = false;
+
+    if (removalType === 'sticker') {
+      success = reportStickerRemovalByJob(jobId, currentUser?.id || 'user-2');
+      if (success) {
+        logUserAction(
+          'UPDATE',
+          'DOCUMENT',
+          jobId,
+          'Sticker removal reported',
+          `Sticker removed from equipment for job order ${jobId}`,
+          { jobOrderId: jobId, type: 'sticker' },
+          currentUser?.id,
+          currentUser?.name,
+          currentUser?.currentRole
+        );
+        setSnackbarMessage('Sticker removal reported successfully. System has been notified.');
+        // Reload sticker usage
+        const usage = getStickerUsageForJob(jobId);
+        setStickerUsage(usage);
+      }
+    } else if (removalType === 'tag') {
+      if (tagInfo) {
+        success = reportTagRemoval(tagInfo.id, currentUser?.id || 'user-2');
+        if (success) {
+          logUserAction(
+            'UPDATE',
+            'DOCUMENT',
+            jobId,
+            'Tag removal reported',
+            `Tag ${tagInfo.tagNumber} removed from equipment for job order ${jobId}`,
+            { jobOrderId: jobId, tagNumber: tagInfo.tagNumber, type: 'tag' },
+            currentUser?.id,
+            currentUser?.name,
+            currentUser?.currentRole
+          );
+          setSnackbarMessage(`Tag ${tagInfo.tagNumber} removal reported successfully. System has been notified.`);
+          // Reload tag info
+          const tag = getTagForJob(jobId);
+          setTagInfo(tag);
+        }
+      }
+    }
+
+    if (success) {
+      setShowSnackbar(true);
+    } else {
+      setSnackbarMessage('Failed to report removal. Please try again.');
+      setShowSnackbar(true);
+    }
+
+    setRemovalDialogOpen(false);
+    setRemovalType(null);
+  };
 
   return (
     <Box>
@@ -193,11 +288,13 @@ export const JobOrderDetail: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={3}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                Service Type
+                Service Types
               </Typography>
-              <Typography variant="body1" fontWeight={600}>
-                {jobOrder.serviceType}
-              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {jobOrder.serviceTypes.map((type) => (
+                  <Chip key={type} label={type} size="small" color="primary" />
+                ))}
+              </Box>
             </Grid>
             <Grid item xs={12} md={3}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
@@ -222,6 +319,119 @@ export const JobOrderDetail: React.FC = () => {
           </Grid>
         </CardContent>
       </Card>
+
+      {/* Sticker & Tag Allocation Section */}
+      {(jobOrder?.stickerAllocation || jobOrder?.tagAllocation || stickerUsage || tagInfo) && (
+        <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+          <Box
+            sx={{
+              background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+              color: 'white',
+              p: 2,
+            }}
+          >
+            <Typography variant="h6" fontWeight={600}>
+              Sticker & Tag Allocation
+            </Typography>
+          </Box>
+          <CardContent sx={{ p: 4 }}>
+            <Grid container spacing={3}>
+              {/* Sticker Info */}
+              {(jobOrder?.stickerAllocation || stickerUsage) && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <InventoryIcon sx={{ mr: 1, color: 'primary.main' }} />
+                      <Typography variant="subtitle1" fontWeight={600}>
+                        Sticker Information
+                      </Typography>
+                    </Box>
+                    {stickerUsage?.status === 'Removed' ? (
+                      <Alert severity="error" sx={{ mb: 2 }}>
+                        <Typography variant="body2" fontWeight={600}>
+                          ⚠️ Sticker Removed
+                        </Typography>
+                        <Typography variant="caption">
+                          Removed on: {stickerUsage.removedAt ? format(new Date(stickerUsage.removedAt), 'MMM dd, yyyy HH:mm') : 'N/A'}
+                        </Typography>
+                      </Alert>
+                    ) : (
+                      <>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Lot Number:</strong> {jobOrder?.stickerAllocation?.stickerLotNumber || stickerUsage?.stickerLotNumber || 'N/A'}
+                        </Typography>
+                        {jobOrder?.stickerAllocation?.stickerSize && (
+                          <Typography variant="body2" color="text.secondary">
+                            <strong>Size:</strong> {jobOrder.stickerAllocation.stickerSize}
+                          </Typography>
+                        )}
+                        {jobOrder?.stickerAllocation?.stickerNumber && (
+                          <Typography variant="body2" color="text.secondary">
+                            <strong>Sticker Number:</strong> {jobOrder.stickerAllocation.stickerNumber}
+                          </Typography>
+                        )}
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          size="small"
+                          startIcon={<ReportIcon />}
+                          onClick={() => handleReportRemoval('sticker')}
+                          sx={{ mt: 2 }}
+                        >
+                          Report Sticker Removed
+                        </Button>
+                      </>
+                    )}
+                  </Box>
+                </Grid>
+              )}
+
+              {/* Tag Info */}
+              {(jobOrder?.tagAllocation || tagInfo) && (
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <LabelIcon sx={{ mr: 1, color: 'primary.main' }} />
+                      <Typography variant="subtitle1" fontWeight={600}>
+                        Tag Information
+                      </Typography>
+                    </Box>
+                    {tagInfo?.status === 'Removed' ? (
+                      <Alert severity="error" sx={{ mb: 2 }}>
+                        <Typography variant="body2" fontWeight={600}>
+                          ⚠️ Tag Removed
+                        </Typography>
+                        <Typography variant="caption">
+                          Removed on: {tagInfo.removedAt ? format(new Date(tagInfo.removedAt), 'MMM dd, yyyy HH:mm') : 'N/A'}
+                        </Typography>
+                      </Alert>
+                    ) : (
+                      <>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Tag Number:</strong> {jobOrder?.tagAllocation?.tagNumber || tagInfo?.tagNumber || 'N/A'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                          Use this tag number for traceability
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          size="small"
+                          startIcon={<ReportIcon />}
+                          onClick={() => handleReportRemoval('tag')}
+                          sx={{ mt: 2 }}
+                        >
+                          Report Tag Removed
+                        </Button>
+                      </>
+                    )}
+                  </Box>
+                </Grid>
+              )}
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Inspection Checklist Form */}
       <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
@@ -472,6 +682,36 @@ export const JobOrderDetail: React.FC = () => {
           />
         </CardContent>
       </Card>
+
+      {/* Removal Confirmation Dialog */}
+      <Dialog open={removalDialogOpen} onClose={() => setRemovalDialogOpen(false)}>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <WarningIcon sx={{ mr: 1, color: 'error.main' }} />
+            Report {removalType === 'sticker' ? 'Sticker' : 'Tag'} Removal
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure the {removalType === 'sticker' ? 'sticker' : 'tag'} has been physically removed from the equipment?
+            <br /><br />
+            <strong>This action will:</strong>
+            <ul>
+              <li>Mark the {removalType === 'sticker' ? 'sticker' : 'tag'} as removed in the system</li>
+              <li>Record the removal date and time</li>
+              <li>Notify managers about the removal</li>
+            </ul>
+            <br />
+            This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRemovalDialogOpen(false)}>Cancel</Button>
+          <Button onClick={confirmRemoval} color="error" variant="contained">
+            Confirm Removal
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

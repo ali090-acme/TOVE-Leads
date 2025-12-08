@@ -133,7 +133,7 @@ export const ReceiptDetail: React.FC = () => {
       doc.text('Service', 20, y);
       doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
-      doc.text(jobOrder.serviceType, 20, y + 7);
+      doc.text(jobOrder.serviceTypes?.join(', ') || 'N/A', 20, y + 7);
       y += 15;
       
       doc.setFontSize(10);
@@ -217,14 +217,14 @@ export const ReceiptDetail: React.FC = () => {
       try {
         await navigator.share({
           title: `Receipt ${receiptNumber}`,
-          text: `Receipt ${receiptNumber}\nService: ${jobOrder?.serviceType || 'N/A'}\nAmount: $${payment.amount}\nDate: ${format(payment.createdAt, 'MMM dd, yyyy')}`,
+          text: `Receipt ${receiptNumber}\nService: ${jobOrder?.serviceTypes?.join(', ') || 'N/A'}\nAmount: $${payment.amount}\nDate: ${format(payment.createdAt, 'MMM dd, yyyy')}`,
         });
       } catch (error) {
         console.log('Share cancelled');
       }
     } else {
       // Fallback: copy to clipboard
-      const text = `Receipt ${receiptNumber}\nService: ${jobOrder?.serviceType || 'N/A'}\nAmount: $${payment.amount}\nDate: ${format(payment.createdAt, 'MMM dd, yyyy')}`;
+      const text = `Receipt ${receiptNumber}\nService: ${jobOrder?.serviceTypes?.join(', ') || 'N/A'}\nAmount: $${payment.amount}\nDate: ${format(payment.createdAt, 'MMM dd, yyyy')}`;
       navigator.clipboard.writeText(text);
       alert('Receipt details copied to clipboard');
     }
@@ -322,9 +322,11 @@ export const ReceiptDetail: React.FC = () => {
                 <Typography variant="caption" color="text.secondary" gutterBottom display="block">
                   Service
                 </Typography>
-                <Typography variant="body1" fontWeight={600}>
-                  {jobOrder.serviceType}
-                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {jobOrder.serviceTypes?.map((type) => (
+                    <Chip key={type} label={type} size="small" color="primary" />
+                  ))}
+                </Box>
               </Box>
 
               <Box sx={{ mb: 3 }}>

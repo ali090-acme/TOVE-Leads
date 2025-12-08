@@ -19,6 +19,13 @@ import {
   CircularProgress,
   Tabs,
   Tab,
+  FormControl,
+  InputLabel,
+  Select,
+  OutlinedInput,
+  Chip,
+  Checkbox,
+  ListItemText,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -37,6 +44,8 @@ import {
 } from '@/utils/offlineQueue';
 import { CloudOff as CloudOffIcon, CloudDone as CloudDoneIcon, PhotoCamera as PhotoCameraIcon, Inventory as InventoryIcon } from '@mui/icons-material';
 import { allocateStickerToJob, canAllocateSticker, getAvailableStickerQuantity } from '@/utils/stickerTracking';
+import { getAvailableTags, allocateTagToJob } from '@/utils/tagTracking';
+import { StickerSize } from '@/types';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -65,12 +74,18 @@ export const NewJobOrder: React.FC = () => {
     initializeOfflineSync();
   }, []);
 
-  // Load available stickers for current inspector
+  // Load available stickers and tags for current inspector
   React.useEffect(() => {
     if (currentUser?.id) {
       loadAvailableStickers();
+      loadAvailableTags();
     }
   }, [currentUser]);
+
+  const loadAvailableTags = () => {
+    const tags = getAvailableTags();
+    setAvailableTags(tags);
+  };
 
   const loadAvailableStickers = () => {
     const STORAGE_KEY_STOCK = 'sticker-stock';
@@ -109,14 +124,18 @@ export const NewJobOrder: React.FC = () => {
   const [onlineStatus, setOnlineStatus] = useState(isOnline());
   const [stickerPhoto, setStickerPhoto] = useState<File | null>(null);
   const [stickerNumber, setStickerNumber] = useState('');
+  const [stickerSize, setStickerSize] = useState<StickerSize>('Large');
   const [showStickerSection, setShowStickerSection] = useState(false);
   const [selectedStickerStockId, setSelectedStickerStockId] = useState<string>('');
   const [availableStickers, setAvailableStickers] = useState<any[]>([]);
+  const [showTagSection, setShowTagSection] = useState(false);
+  const [selectedTagId, setSelectedTagId] = useState<string>('');
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
 
   // Form state for existing client
   const [formData, setFormData] = useState({
     clientId: '',
-    serviceType: '' as ServiceType | '',
+    serviceTypes: [] as ServiceType[], // Multiple service types can be selected
     location: '',
     dateTime: '',
     priority: 'Medium' as 'Low' | 'Medium' | 'High',
@@ -195,8 +214,8 @@ export const NewJobOrder: React.FC = () => {
     }
 
     // Common validation
-    if (!formData.serviceType) {
-      newErrors.serviceType = 'Service type is required';
+    if (formData.serviceTypes.length === 0) {
+      newErrors.serviceTypes = 'At least one service type is required';
     }
     if (!formData.location.trim()) {
       newErrors.location = 'Location is required';
@@ -209,6 +228,11 @@ export const NewJobOrder: React.FC = () => {
       if (selectedDate < now) {
         newErrors.dateTime = 'Date and time cannot be in the past';
       }
+    }
+
+    // Sticker or Tag validation - at least one is required
+    if (!selectedStickerStockId && !selectedTagId) {
+      newErrors.stickerOrTag = 'Please select either a sticker or a tag (at least one is required)';
     }
 
     setErrors(newErrors);
@@ -285,7 +309,7 @@ export const NewJobOrder: React.FC = () => {
       const jobOrderData = {
         clientId: clientId,
         clientName: clientName,
-        serviceType: formData.serviceType as ServiceType,
+        serviceTypes: formData.serviceTypes, // Multiple service types
         dateTime: new Date(formData.dateTime),
         location: formData.location,
         status: 'Pending' as const,
@@ -306,14 +330,24 @@ export const NewJobOrder: React.FC = () => {
           stickerId: selectedStickerStockId,
           stickerNumber: stickerNumber || undefined,
           stickerLotNumber: availableStickers.find((s) => s.id === selectedStickerStockId)?.lotNumber || undefined,
+          stickerSize: stickerSize,
           allocatedAt: new Date(),
           allocatedBy: currentUser?.id || 'user-2',
           stickerPhoto: stickerPhotoBase64,
         } : undefined;
 
+        // Prepare tag allocation data for offline job
+        const tagAllocation = selectedTagId ? {
+          tagId: selectedTagId,
+          tagNumber: availableTags.find((t) => t.id === selectedTagId)?.tagNumber || '',
+          allocatedAt: new Date(),
+          allocatedBy: currentUser?.id || 'user-2',
+        } : undefined;
+
         const offlineJob = addToOfflineQueue({
           ...jobOrderData,
           stickerAllocation,
+          tagAllocation,
           stickerPhoto: stickerPhotoBase64,
           stickerNumber: stickerNumber || undefined,
         });
@@ -343,7 +377,7 @@ export const NewJobOrder: React.FC = () => {
         // Reset form
         setFormData({
           clientId: '',
-          serviceType: '' as ServiceType | '',
+          serviceTypes: [],
           location: '',
           dateTime: '',
           priority: 'Medium',
@@ -359,10 +393,14 @@ export const NewJobOrder: React.FC = () => {
         });
         setStickerPhoto(null);
         setStickerNumber('');
+        setStickerSize('Large');
         setSelectedStickerStockId('');
         setShowStickerSection(false);
+        setSelectedTagId('');
+        setShowTagSection(false);
         setErrors({});
         loadAvailableStickers(); // Reload available stickers
+        loadAvailableTags(); // Reload available tags
 
         navigate('/inspector/jobs');
         return;
@@ -405,12 +443,34 @@ export const NewJobOrder: React.FC = () => {
                 stickerId: selectedSticker.id,
                 stickerNumber: stickerNumber || undefined,
                 stickerLotNumber: selectedSticker.lotNumber,
+                stickerSize: stickerSize,
                 allocatedAt: new Date(),
                 allocatedBy: currentUser?.id || 'user-2',
                 stickerPhoto: stickerPhotoBase64,
               };
               localStorage.setItem('jobOrders', JSON.stringify(jobOrders));
             }
+          }
+        }
+      }
+
+      // Allocate tag to job order if selected
+      if (selectedTagId) {
+        const selectedTag = availableTags.find((t) => t.id === selectedTagId);
+        if (selectedTag) {
+          allocateTagToJob(selectedTag.id, newJobOrder.id, currentUser?.id || 'user-2');
+          
+          // Update job order with tag allocation info
+          const jobOrders = JSON.parse(localStorage.getItem('jobOrders') || '[]');
+          const jobIndex = jobOrders.findIndex((jo: any) => jo.id === newJobOrder.id);
+          if (jobIndex !== -1) {
+            jobOrders[jobIndex].tagAllocation = {
+              tagId: selectedTag.id,
+              tagNumber: selectedTag.tagNumber,
+              allocatedAt: new Date(),
+              allocatedBy: currentUser?.id || 'user-2',
+            };
+            localStorage.setItem('jobOrders', JSON.stringify(jobOrders));
           }
         }
       } else if (stickerPhoto) {
@@ -435,7 +495,7 @@ export const NewJobOrder: React.FC = () => {
       // Reset form
       setFormData({
         clientId: '',
-        serviceType: '' as ServiceType | '',
+        serviceTypes: [],
         location: '',
         dateTime: '',
         priority: 'Medium',
@@ -451,8 +511,12 @@ export const NewJobOrder: React.FC = () => {
       });
       setStickerPhoto(null);
       setStickerNumber('');
+      setStickerSize('Large');
       setShowStickerSection(false);
+      setSelectedTagId('');
+      setShowTagSection(false);
       setErrors({});
+      loadAvailableTags(); // Reload available tags
 
       // Redirect to job orders list
       navigate('/inspector/jobs');
@@ -517,6 +581,8 @@ export const NewJobOrder: React.FC = () => {
             <strong>Remote Site Scenario:</strong> If you're at a new client site, you can create 
             a new client profile and job order immediately. The job will be auto-assigned to you.
             {!onlineStatus && ' You can also upload a photo of the sticker attachment for accountability.'}
+            <br /><br />
+            <strong>Required:</strong> You must select either a <strong>Sticker</strong> or a <strong>Tag</strong> (at least one is required for accountability and traceability).
           </Alert>
 
           {/* Client Selection Tabs */}
@@ -651,26 +717,56 @@ export const NewJobOrder: React.FC = () => {
 
           <Grid container spacing={3} sx={{ mt: 1 }}>
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                required
-                select
-                label="Service Type"
-                value={formData.serviceType}
-                onChange={(e) => {
-                  setFormData({ ...formData, serviceType: e.target.value as ServiceType });
-                  if (errors.serviceType) {
-                    setErrors({ ...errors, serviceType: '' });
-                  }
-                }}
-                error={!!errors.serviceType}
-                helperText={errors.serviceType}
-              >
-                <MenuItem value="Inspection">Equipment Inspection</MenuItem>
-                <MenuItem value="Assessment">Operator Assessment</MenuItem>
-                <MenuItem value="Training">Training Session</MenuItem>
-                <MenuItem value="NDT">NDT Testing</MenuItem>
-              </TextField>
+              <FormControl fullWidth required error={!!errors.serviceTypes}>
+                <InputLabel>Service Types</InputLabel>
+                <Select
+                  multiple
+                  value={formData.serviceTypes}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData({ 
+                      ...formData, 
+                      serviceTypes: typeof value === 'string' ? value.split(',') as ServiceType[] : value as ServiceType[]
+                    });
+                    if (errors.serviceTypes) {
+                      setErrors({ ...errors, serviceTypes: '' });
+                    }
+                  }}
+                  input={<OutlinedInput label="Service Types" />}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => (
+                        <Chip key={value} label={value} size="small" />
+                      ))}
+                    </Box>
+                  )}
+                >
+                  <MenuItem value="Inspection">
+                    <Checkbox checked={formData.serviceTypes.indexOf('Inspection') > -1} />
+                    <ListItemText primary="Equipment Inspection" />
+                  </MenuItem>
+                  <MenuItem value="Assessment">
+                    <Checkbox checked={formData.serviceTypes.indexOf('Assessment') > -1} />
+                    <ListItemText primary="Operator Assessment" />
+                  </MenuItem>
+                  <MenuItem value="Training">
+                    <Checkbox checked={formData.serviceTypes.indexOf('Training') > -1} />
+                    <ListItemText primary="Training Session" />
+                  </MenuItem>
+                  <MenuItem value="NDT">
+                    <Checkbox checked={formData.serviceTypes.indexOf('NDT') > -1} />
+                    <ListItemText primary="NDT Testing" />
+                  </MenuItem>
+                </Select>
+                {errors.serviceTypes && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
+                    {errors.serviceTypes}
+                  </Typography>
+                )}
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.75 }}>
+                  You can select multiple services (e.g., Inspection + Training)
+                </Typography>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -745,6 +841,11 @@ export const NewJobOrder: React.FC = () => {
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Select from your assigned stickers to link with this job order
+                    {!selectedTagId && (
+                      <Typography component="span" color="error" sx={{ ml: 0.5 }}>
+                        *
+                      </Typography>
+                    )}
                   </Typography>
                 </Box>
                 <Button
@@ -760,6 +861,11 @@ export const NewJobOrder: React.FC = () => {
                   {showStickerSection ? 'Hide' : 'Show'}
                 </Button>
               </Box>
+              {errors.stickerOrTag && (
+                <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                  {errors.stickerOrTag}
+                </Alert>
+              )}
               {showStickerSection && (
                 <Grid container spacing={2}>
                   {availableStickers.length === 0 ? (
@@ -775,7 +881,7 @@ export const NewJobOrder: React.FC = () => {
                     </Grid>
                   ) : (
                     <>
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={12} md={4}>
                         <TextField
                           fullWidth
                           select
@@ -786,20 +892,33 @@ export const NewJobOrder: React.FC = () => {
                             const selected = availableStickers.find((s) => s.id === e.target.value);
                             if (selected) {
                               setStickerNumber('');
+                              setStickerSize(selected.size || 'Large');
                             }
                           }}
                           helperText="Select from your assigned sticker lots"
                         >
                           {availableStickers.map((sticker) => (
                             <MenuItem key={sticker.id} value={sticker.id}>
-                              {sticker.lotNumber} - {sticker.availableQuantity} available (Total: {sticker.quantity})
+                              {sticker.lotNumber} ({sticker.size || 'Large'}) - {sticker.availableQuantity} available
                             </MenuItem>
                           ))}
                         </TextField>
                       </Grid>
                       {selectedStickerStockId && (
                         <>
-                          <Grid item xs={12} md={6}>
+                          <Grid item xs={12} md={4}>
+                            <TextField
+                              fullWidth
+                              select
+                              label="Sticker Size"
+                              value={stickerSize}
+                              onChange={(e) => setStickerSize(e.target.value as StickerSize)}
+                            >
+                              <MenuItem value="Large">Large</MenuItem>
+                              <MenuItem value="Small">Small</MenuItem>
+                            </TextField>
+                          </Grid>
+                          <Grid item xs={12} md={4}>
                             <TextField
                               fullWidth
                               label="Sticker Number (Optional)"
@@ -812,7 +931,7 @@ export const NewJobOrder: React.FC = () => {
                           <Grid item xs={12}>
                             <Alert severity="info" sx={{ borderRadius: 2 }}>
                               <Typography variant="body2">
-                                <strong>Selected:</strong> {availableStickers.find((s) => s.id === selectedStickerStockId)?.lotNumber}
+                                <strong>Selected:</strong> {availableStickers.find((s) => s.id === selectedStickerStockId)?.lotNumber} ({stickerSize})
                                 <br />
                                 <strong>Available:</strong> {availableStickers.find((s) => s.id === selectedStickerStockId)?.availableQuantity} sticker(s)
                                 <br />
@@ -855,6 +974,84 @@ export const NewJobOrder: React.FC = () => {
                         </Box>
                       </Grid>
                     </>
+                  )}
+                </Grid>
+              )}
+            </Grid>
+
+            {/* Tag Allocation Section */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Box>
+                  <Typography variant="h6" fontWeight={600}>
+                    Tag Allocation (Physical Tag - Not Printable)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Select a physical tag with unique number for traceability. Tags are ready-to-use items.
+                    {!selectedStickerStockId && (
+                      <Typography component="span" color="error" sx={{ ml: 1 }}>
+                        *
+                      </Typography>
+                    )}
+                  </Typography>
+                </Box>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => {
+                    setShowTagSection(!showTagSection);
+                    if (!showTagSection) {
+                      loadAvailableTags();
+                    }
+                  }}
+                >
+                  {showTagSection ? 'Hide' : 'Show'}
+                </Button>
+              </Box>
+              {showTagSection && (
+                <Grid container spacing={2}>
+                  {availableTags.length === 0 ? (
+                    <Grid item xs={12}>
+                      <Alert severity={!selectedStickerStockId ? 'error' : 'warning'} sx={{ borderRadius: 2 }}>
+                        <Typography variant="body2" fontWeight={600}>
+                          No Available Tags
+                        </Typography>
+                        <Typography variant="body2">
+                          {!selectedStickerStockId
+                            ? 'You must select either a sticker or a tag. Please select a sticker above, or ask manager to enter tags first (ready-to-use items from shipment).'
+                            : 'No available tags in the system. Manager needs to enter tags first (ready-to-use items from shipment). (Sticker already selected)'}
+                        </Typography>
+                      </Alert>
+                    </Grid>
+                  ) : (
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        select
+                        label="Select Tag"
+                        value={selectedTagId}
+                        onChange={(e) => setSelectedTagId(e.target.value)}
+                        helperText="Select a physical tag with unique number for traceability"
+                      >
+                        {availableTags.map((tag) => (
+                          <MenuItem key={tag.id} value={tag.id}>
+                            {tag.tagNumber}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Grid>
+                  )}
+                  {selectedTagId && (
+                    <Grid item xs={12}>
+                      <Alert severity="info" sx={{ borderRadius: 2 }}>
+                        <Typography variant="body2">
+                          <strong>Selected Tag:</strong> {availableTags.find((t) => t.id === selectedTagId)?.tagNumber}
+                          <br />
+                          This tag will be allocated to this job order for traceability. If removed, it will be detected immediately.
+                        </Typography>
+                      </Alert>
+                    </Grid>
                   )}
                 </Grid>
               )}

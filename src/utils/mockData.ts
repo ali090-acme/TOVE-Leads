@@ -131,7 +131,7 @@ export const mockJobOrders: JobOrder[] = [
     id: 'JO-2025001',
     clientId: 'client-1',
     clientName: 'ABC Construction Ltd',
-    serviceType: 'Inspection',
+    serviceTypes: ['Inspection'],
     dateTime: new Date('2025-10-20T10:00:00'),
     location: '123 Main Street, City',
     assignedTo: 'user-2',
@@ -147,7 +147,7 @@ export const mockJobOrders: JobOrder[] = [
     id: 'JO-2025002',
     clientId: 'client-2',
     clientName: 'TOVE Leeds Engineering Co',
-    serviceType: 'Training',
+    serviceTypes: ['Training'],
     dateTime: new Date('2025-10-18T14:00:00'),
     location: '456 Tech Avenue, City',
     assignedTo: 'user-3',
@@ -163,7 +163,7 @@ export const mockJobOrders: JobOrder[] = [
     id: 'JO-2025003',
     clientId: 'client-1',
     clientName: 'ABC Construction Ltd',
-    serviceType: 'NDT',
+    serviceTypes: ['NDT'],
     dateTime: new Date('2025-10-16T09:00:00'),
     location: '789 Industrial Park',
     assignedTo: 'user-2',
@@ -255,6 +255,7 @@ export const mockPayments: Payment[] = [
 export const mockTrainingSessions: TrainingSession[] = [
   {
     id: 'train-1',
+    jobOrderId: 'JO-2025002', // Linked to job order
     clientId: 'client-2',
     trainerId: 'user-3',
     trainerName: 'Mike Trainer',
@@ -267,6 +268,8 @@ export const mockTrainingSessions: TrainingSession[] = [
     approvalStatus: 'Pending',
     location: '456 Tech Avenue, City',
     status: 'Scheduled',
+    createdAt: new Date('2025-10-10'),
+    updatedAt: new Date('2025-10-10'),
   },
 ];
 

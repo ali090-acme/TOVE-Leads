@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -26,7 +26,6 @@ import {
 } from '@mui/material';
 import { CheckCircle as ApproveIcon, Cancel as RejectIcon, Edit as ReviseIcon, Person as PersonIcon } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import { mockJobOrders } from '@/utils/mockData';
 import { format } from 'date-fns';
 import { getStatusChip } from '@/components/common/DataTable';
 import { useAppContext } from '@/context/AppContext';
@@ -35,8 +34,10 @@ import { logUserAction } from '@/utils/activityLogger';
 export const ApprovalDetail: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { currentUser, users, approveJobOrder, rejectJobOrder } = useAppContext();
-  const jobOrder = mockJobOrders.find((job) => job.id === jobId);
+  const { currentUser, users, approveJobOrder, rejectJobOrder, jobOrders } = useAppContext();
+  const jobOrder = useMemo(() => {
+    return jobOrders.find((job) => job.id === jobId);
+  }, [jobOrders, jobId]);
 
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [reviseDialogOpen, setReviseDialogOpen] = useState(false);
@@ -103,7 +104,10 @@ export const ApprovalDetail: React.FC = () => {
       );
 
       alert('Report approved successfully!');
-      navigate('/supervisor');
+      // Small delay to ensure state updates before navigation
+      setTimeout(() => {
+        navigate('/supervisor');
+      }, 100);
     }
   };
 
@@ -176,12 +180,14 @@ export const ApprovalDetail: React.FC = () => {
               </Typography>
             </Grid>
             <Grid item xs={12} md={3}>
-              <Typography variant="body2" color="text.secondary">
-                Service Type
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                Service Types
               </Typography>
-              <Typography variant="body1" fontWeight={500}>
-                {jobOrder.serviceType}
-              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {jobOrder.serviceTypes?.map((type) => (
+                  <Chip key={type} label={type} size="small" color="primary" />
+                ))}
+              </Box>
             </Grid>
             <Grid item xs={12} md={3}>
               <Typography variant="body2" color="text.secondary">

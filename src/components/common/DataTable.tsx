@@ -12,6 +12,7 @@ import {
   TextField,
   Box,
   Chip,
+  Typography,
 } from '@mui/material';
 
 export interface Column<T> {
@@ -89,20 +90,25 @@ export function DataTable<T extends { id: string }>({
   );
 
   return (
-    <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+    <Paper sx={{ width: '100%', overflow: 'hidden', borderRadius: 2, boxShadow: 2 }}>
       {searchable && (
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
           <TextField
             fullWidth
             size="small"
             placeholder={searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+              },
+            }}
           />
         </Box>
       )}
       <TableContainer sx={{ maxHeight: 600 }}>
-        <Table stickyHeader>
+        <Table stickyHeader sx={{ '& .MuiTableCell-root': { borderColor: 'divider' } }}>
           <TableHead>
             <TableRow>
               {columns.map((column) => (
@@ -110,36 +116,78 @@ export function DataTable<T extends { id: string }>({
                   key={column.id as string}
                   align={column.align}
                   style={{ minWidth: column.minWidth }}
+                  sx={{
+                    backgroundColor: 'grey.50',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    color: 'text.primary',
+                    py: 1.5,
+                  }}
                 >
-                  <TableSortLabel
-                    active={orderBy === column.id}
-                    direction={orderBy === column.id ? order : 'asc'}
-                    onClick={() => handleSort(column.id)}
-                  >
-                    {column.label}
-                  </TableSortLabel>
+                  {column.format ? (
+                    column.label
+                  ) : (
+                    <TableSortLabel
+                      active={orderBy === column.id}
+                      direction={orderBy === column.id ? order : 'asc'}
+                      onClick={() => handleSort(column.id)}
+                      sx={{
+                        '& .MuiTableSortLabel-icon': {
+                          opacity: orderBy === column.id ? 1 : 0.5,
+                        },
+                      }}
+                    >
+                      {column.label}
+                    </TableSortLabel>
+                  )}
                 </TableCell>
               ))}
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedData.map((row) => (
-              <TableRow
-                hover
-                key={row.id}
-                onClick={() => onRowClick?.(row)}
-                sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
-              >
-                {columns.map((column) => {
-                  const value = getNestedValue(row, column.id as string);
-                  return (
-                    <TableCell key={column.id as string} align={column.align}>
-                      {column.format ? column.format(value, row) : value}
-                    </TableCell>
-                  );
-                })}
+            {paginatedData.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} align="center" sx={{ py: 6 }}>
+                  <Typography variant="body1" color="text.secondary">
+                    No data found
+                  </Typography>
+                </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              paginatedData.map((row, index) => (
+                <TableRow
+                  hover
+                  key={row.id}
+                  onClick={() => onRowClick?.(row)}
+                  sx={{ 
+                    cursor: onRowClick ? 'pointer' : 'default',
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                    },
+                    '&:nth-of-type(even)': {
+                      backgroundColor: 'grey.50',
+                    },
+                  }}
+                >
+                  {columns.map((column) => {
+                    const value = getNestedValue(row, column.id as string);
+                    return (
+                      <TableCell 
+                        key={column.id as string} 
+                        align={column.align}
+                        sx={{
+                          py: 1.75,
+                          borderBottom: index < paginatedData.length - 1 ? '1px solid' : 'none',
+                          borderColor: 'divider',
+                        }}
+                      >
+                        {column.format ? column.format(value, row) : value}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -151,6 +199,13 @@ export function DataTable<T extends { id: string }>({
         page={page}
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
+        sx={{
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          '& .MuiTablePagination-toolbar': {
+            px: 2,
+          },
+        }}
       />
     </Paper>
   );

@@ -26,6 +26,9 @@ import {
   Tabs,
   Tab,
   TextField,
+  Select,
+  MenuItem,
+  InputLabel,
 } from '@mui/material';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { useAppContext } from '@/context/AppContext';
@@ -98,11 +101,12 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export const UserManagement: React.FC = () => {
-  const { users: contextUsers, setCurrentUser } = useAppContext();
+  const { users: contextUsers, setCurrentUser, setUsers: setContextUsers } = useAppContext();
   const [users, setUsers] = useState<User[]>(contextUsers);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
@@ -116,27 +120,77 @@ export const UserManagement: React.FC = () => {
     email: '',
     employeeId: '',
     department: '',
+    regionId: '',
+    teamId: '',
   });
 
-  // Load users from localStorage
+  // Create user form state
+  const [createFormData, setCreateFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    employeeId: '',
+    department: '',
+    role: 'inspector' as UserRole,
+    regionId: '',
+    teamId: '',
+  });
+
+  // Load regions for dropdown
+  const [regions, setRegions] = useState<any[]>([]);
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY_USERS);
+    const stored = localStorage.getItem('regions');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        setUsers(parsed);
+        setRegions(parsed);
       } catch (e) {
-        console.error('Failed to parse users from localStorage', e);
+        console.error('Failed to parse regions from localStorage', e);
       }
-    } else {
-      setUsers(contextUsers);
-      saveUsers(contextUsers);
     }
-  }, [contextUsers]);
+  }, []);
+
+  // Load users from localStorage on mount only
+  useEffect(() => {
+    const loadUsers = () => {
+      const stored = localStorage.getItem(STORAGE_KEY_USERS);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setUsers(parsed);
+          // Sync with AppContext
+          if (setContextUsers) {
+            setContextUsers(parsed);
+          }
+        } catch (e) {
+          console.error('Failed to parse users from localStorage', e);
+          // Fallback to context users if parsing fails
+          if (contextUsers.length > 0) {
+            setUsers(contextUsers);
+          }
+        }
+      } else {
+        // Initialize with context users if no localStorage data
+        if (contextUsers.length > 0) {
+          setUsers(contextUsers);
+          // Save to localStorage for first time
+          localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(contextUsers));
+        }
+      }
+    };
+
+    loadUsers();
+  }, []); // Empty dependency - only run on mount
 
   const saveUsers = (updatedUsers: User[]) => {
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(updatedUsers));
     setUsers(updatedUsers);
+    // Also update AppContext
+    if (setContextUsers) {
+      setContextUsers(updatedUsers);
+    }
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new Event('usersUpdated'));
   };
 
   const handleEditPermissions = (user: User) => {
@@ -152,8 +206,87 @@ export const UserManagement: React.FC = () => {
       email: user.email,
       employeeId: user.employeeId || '',
       department: user.department || '',
+      regionId: user.regionId || '',
+      teamId: user.teamId || '',
     });
     setEditDialogOpen(true);
+  };
+
+  const handleOpenCreateDialog = () => {
+    setCreateFormData({
+      name: '',
+      email: '',
+      password: '',
+      employeeId: '',
+      department: '',
+      role: 'inspector',
+      regionId: '',
+      teamId: '',
+    });
+    setCreateDialogOpen(true);
+  };
+
+  const handleSaveCreate = () => {
+    if (!createFormData.name.trim() || !createFormData.email.trim() || !createFormData.password.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Please fill in all required fields',
+        severity: 'error',
+      });
+      return;
+    }
+
+    // Check if email already exists
+    if (users.some((u) => u.email.toLowerCase() === createFormData.email.toLowerCase())) {
+      setSnackbar({
+        open: true,
+        message: 'User with this email already exists',
+        severity: 'error',
+      });
+      return;
+    }
+
+    const newUser: User = {
+      id: `user-${Date.now()}`,
+      name: createFormData.name.trim(),
+      email: createFormData.email.trim().toLowerCase(),
+      roles: [createFormData.role],
+      currentRole: createFormData.role,
+      employeeId: createFormData.employeeId.trim() || undefined,
+      department: createFormData.department.trim() || undefined,
+      regionId: createFormData.regionId || undefined,
+      teamId: createFormData.teamId || undefined,
+      // Note: In a real app, password would be hashed. For now, we'll just store it (not recommended for production)
+    };
+
+    const updatedUsers = [...users, newUser];
+    // Save to localStorage FIRST (before state update)
+    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(updatedUsers));
+    // Update AppContext FIRST to prevent it from overwriting
+    if (setContextUsers) {
+      setContextUsers(updatedUsers);
+    }
+    // Then update local state
+    setUsers(updatedUsers);
+    // Dispatch event to notify other components
+    window.dispatchEvent(new Event('usersUpdated'));
+
+    setSnackbar({
+      open: true,
+      message: `User ${newUser.name} created successfully`,
+      severity: 'success',
+    });
+    setCreateDialogOpen(false);
+    setCreateFormData({
+      name: '',
+      email: '',
+      password: '',
+      employeeId: '',
+      department: '',
+      role: 'inspector',
+      regionId: '',
+      teamId: '',
+    });
   };
 
   const handleSaveEdit = () => {
@@ -165,6 +298,8 @@ export const UserManagement: React.FC = () => {
       email: editFormData.email,
       employeeId: editFormData.employeeId || undefined,
       department: editFormData.department || undefined,
+      regionId: editFormData.regionId || undefined,
+      teamId: editFormData.teamId || undefined,
     };
 
     const updatedUsers = users.map((u) => (u.id === selectedUser.id ? updatedUser : u));
@@ -252,22 +387,53 @@ export const UserManagement: React.FC = () => {
   };
 
   const columns: Column<User>[] = [
-    { id: 'name', label: 'Name', minWidth: 170 },
-    { id: 'email', label: 'Email', minWidth: 200 },
+    { 
+      id: 'name', 
+      label: 'Name', 
+      minWidth: 180,
+      format: (value) => (
+        <Typography variant="body2" fontWeight={500}>
+          {value}
+        </Typography>
+      ),
+    },
+    { 
+      id: 'email', 
+      label: 'Email', 
+      minWidth: 220,
+      format: (value) => (
+        <Typography variant="body2" color="text.secondary">
+          {value}
+        </Typography>
+      ),
+    },
     {
       id: 'employeeId',
       label: 'Employee ID',
-      minWidth: 120,
-      format: (value) => value || 'N/A',
+      minWidth: 130,
+      format: (value) => (
+        <Typography variant="body2" color={value ? 'text.primary' : 'text.secondary'}>
+          {value || 'N/A'}
+        </Typography>
+      ),
     },
     {
       id: 'roles',
       label: 'Roles',
-      minWidth: 200,
+      minWidth: 150,
       format: (value: string[]) => (
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           {value.map((role) => (
-            <Chip key={role} label={role} size="small" />
+            <Chip 
+              key={role} 
+              label={role} 
+              size="small" 
+              sx={{ 
+                textTransform: 'capitalize',
+                fontWeight: 500,
+                height: 24,
+              }} 
+            />
           ))}
         </Box>
       ),
@@ -278,10 +444,61 @@ export const UserManagement: React.FC = () => {
       minWidth: 180,
       format: (value, row) => {
         const summary = getPermissionSummary(row);
+        const enabledCount = row.permissions 
+          ? Object.values(row.permissions.permissions).filter((v) => v === true).length 
+          : 0;
         return (
-          <Typography variant="body2" color="text.secondary">
-            {summary}
-          </Typography>
+          <Box>
+            <Typography 
+              variant="body2" 
+              color={enabledCount > 0 ? 'text.primary' : 'text.secondary'}
+              fontWeight={enabledCount > 0 ? 500 : 400}
+            >
+              {summary}
+            </Typography>
+          </Box>
+        );
+      },
+    },
+    {
+      id: 'regionId',
+      label: 'Region / Team',
+      minWidth: 200,
+      format: (value, row) => {
+        const region = regions.find((r) => r.id === row.regionId);
+        const team = region?.teams?.find((t: any) => t.id === row.teamId);
+        if (!region) {
+          return (
+            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+              Not assigned
+            </Typography>
+          );
+        }
+        return (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Chip 
+              label={region.name} 
+              size="small" 
+              color="primary" 
+              sx={{ 
+                height: 24,
+                fontWeight: 500,
+                width: 'fit-content',
+              }} 
+            />
+            {team && (
+              <Chip 
+                label={team.name} 
+                size="small" 
+                color="secondary" 
+                variant="outlined"
+                sx={{ 
+                  height: 22,
+                  width: 'fit-content',
+                }}
+              />
+            )}
+          </Box>
         );
       },
     },
@@ -349,6 +566,7 @@ export const UserManagement: React.FC = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
+          onClick={handleOpenCreateDialog}
           sx={{
             background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
             '&:hover': {
@@ -451,6 +669,53 @@ export const UserManagement: React.FC = () => {
                 onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
               />
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Region</InputLabel>
+                <Select
+                  value={editFormData.regionId}
+                  onChange={(e) => {
+                    setEditFormData({ 
+                      ...editFormData, 
+                      regionId: e.target.value,
+                      teamId: '', // Reset team when region changes
+                    });
+                  }}
+                  label="Region"
+                >
+                  <MenuItem value="">
+                    <em>None</em>
+                  </MenuItem>
+                  {regions.map((region) => (
+                    <MenuItem key={region.id} value={region.id}>
+                      {region.name} ({region.code})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth disabled={!editFormData.regionId}>
+                <InputLabel>Team</InputLabel>
+                <Select
+                  value={editFormData.teamId}
+                  onChange={(e) => setEditFormData({ ...editFormData, teamId: e.target.value })}
+                  label="Team"
+                >
+                  <MenuItem value="">
+                    <em>None</em>
+                  </MenuItem>
+                  {regions
+                    .find((r) => r.id === editFormData.regionId)
+                    ?.teams?.filter((t: any) => t.isActive)
+                    .map((team: any) => (
+                      <MenuItem key={team.id} value={team.id}>
+                        {team.name} ({team.code})
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
+            </Grid>
             {selectedUser && (
               <Grid item xs={12}>
                 <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
@@ -485,6 +750,181 @@ export const UserManagement: React.FC = () => {
             disabled={!editFormData.name || !editFormData.email}
           >
             Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => {
+          setCreateDialogOpen(false);
+          setCreateFormData({
+            name: '',
+            email: '',
+            password: '',
+            employeeId: '',
+            department: '',
+            role: 'inspector',
+            regionId: '',
+            teamId: '',
+          });
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+          },
+        }}
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={600}>
+            Create New User
+          </Typography>
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ pt: 3 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Name"
+                required
+                value={createFormData.name}
+                onChange={(e) => setCreateFormData({ ...createFormData, name: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Email"
+                required
+                type="email"
+                value={createFormData.email}
+                onChange={(e) => setCreateFormData({ ...createFormData, email: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Password"
+                required
+                type="password"
+                value={createFormData.password}
+                onChange={(e) => setCreateFormData({ ...createFormData, password: e.target.value })}
+                helperText="Password for user login"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Role</InputLabel>
+                <Select
+                  value={createFormData.role}
+                  onChange={(e) => setCreateFormData({ ...createFormData, role: e.target.value as UserRole })}
+                  label="Role"
+                >
+                  <MenuItem value="inspector">Inspector</MenuItem>
+                  <MenuItem value="trainer">Trainer</MenuItem>
+                  <MenuItem value="supervisor">Supervisor</MenuItem>
+                  <MenuItem value="accountant">Accountant</MenuItem>
+                  <MenuItem value="manager">Manager</MenuItem>
+                  <MenuItem value="gm">General Manager</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Employee ID"
+                value={createFormData.employeeId}
+                onChange={(e) => setCreateFormData({ ...createFormData, employeeId: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Department"
+                value={createFormData.department}
+                onChange={(e) => setCreateFormData({ ...createFormData, department: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Region</InputLabel>
+                <Select
+                  value={createFormData.regionId}
+                  onChange={(e) => {
+                    setCreateFormData({ 
+                      ...createFormData, 
+                      regionId: e.target.value,
+                      teamId: '', // Reset team when region changes
+                    });
+                  }}
+                  label="Region"
+                >
+                  <MenuItem value="">
+                    <em>None</em>
+                  </MenuItem>
+                  {regions.map((region) => (
+                    <MenuItem key={region.id} value={region.id}>
+                      {region.name} ({region.code})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth disabled={!createFormData.regionId}>
+                <InputLabel>Team</InputLabel>
+                <Select
+                  value={createFormData.teamId}
+                  onChange={(e) => setCreateFormData({ ...createFormData, teamId: e.target.value })}
+                  label="Team"
+                >
+                  <MenuItem value="">
+                    <em>None</em>
+                  </MenuItem>
+                  {regions
+                    .find((r) => r.id === createFormData.regionId)
+                    ?.teams?.filter((t: any) => t.isActive)
+                    .map((team: any) => (
+                      <MenuItem key={team.id} value={team.id}>
+                        {team.name} ({team.code})
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <Divider />
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button
+            onClick={() => {
+              setCreateDialogOpen(false);
+              setCreateFormData({
+                name: '',
+                email: '',
+                password: '',
+                employeeId: '',
+                department: '',
+                role: 'inspector',
+                regionId: '',
+                teamId: '',
+              });
+            }}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveCreate}
+            variant="contained"
+            color="primary"
+            disabled={!createFormData.name || !createFormData.email || !createFormData.password}
+          >
+            Create User
           </Button>
         </DialogActions>
       </Dialog>

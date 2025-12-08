@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import {
   Client,
   JobOrder,
@@ -47,6 +47,10 @@ interface AppContextType {
     photos: File[]
   ) => boolean;
   
+  // Training Session actions
+  createTrainingSession: (training: Omit<TrainingSession, 'id' | 'createdAt' | 'updatedAt'>) => boolean;
+  updateTrainingSession: (sessionId: string, updates: Partial<TrainingSession>) => boolean;
+  
   // Supervisor actions
   approveJobOrder: (jobOrderId: string) => boolean;
   rejectJobOrder: (jobOrderId: string, reason: string) => boolean;
@@ -57,7 +61,8 @@ interface AppContextType {
   rejectPayment: (paymentId: string, reason: string) => boolean;
   
   // Certificate generation
-  generateCertificate: (jobOrderId: string) => Certificate | null;
+  generateCertificate: (jobOrderId: string, format?: 'A4' | 'Card') => Certificate | null;
+  generateTrainingCertificates: (trainingSessionId: string, format?: 'A4' | 'Card') => Certificate[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -108,7 +113,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         updatedAt: new Date(),
       };
 
-      setJobOrders((prev) => [...prev, newJobOrder]);
+      setJobOrders((prev) => {
+        const updated = [...prev, newJobOrder];
+        // Dispatch custom event to notify components
+        setTimeout(() => window.dispatchEvent(new CustomEvent('jobOrdersUpdated')), 0);
+        return updated;
+      });
       return newJobOrder;
     } catch (error) {
       console.error('Error creating job order:', error);
@@ -142,17 +152,29 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return mockPayments;
   });
 
-  const [trainingSessions] = useState<TrainingSession[]>(() => {
+  const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>(() => {
     const stored = localStorage.getItem('trainingSessions');
     if (stored) {
       const parsed = JSON.parse(stored);
       return parsed.map((ts: any) => ({
         ...ts,
         scheduledDateTime: new Date(ts.scheduledDateTime),
+        createdAt: ts.createdAt ? new Date(ts.createdAt) : new Date(),
+        updatedAt: ts.updatedAt ? new Date(ts.updatedAt) : new Date(),
       }));
     }
-    return mockTrainingSessions;
+    return mockTrainingSessions.map((ts) => ({
+      ...ts,
+      jobOrderId: ts.jobOrderId || '', // Add jobOrderId if missing in mock data
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
   });
+
+  // Save training sessions to localStorage whenever they change
+  React.useEffect(() => {
+    localStorage.setItem('trainingSessions', JSON.stringify(trainingSessions));
+  }, [trainingSessions]);
 
   const [ndtReports] = useState<NDTReport[]>(() => {
     const stored = localStorage.getItem('ndtReports');
@@ -165,10 +187,44 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   });
 
   // Sync users to localStorage
+  // But check if localStorage was updated externally first to avoid overwriting
   useEffect(() => {
-    localStorage.setItem('users', JSON.stringify(users));
-    // Dispatch event when users are updated
-    window.dispatchEvent(new Event('usersUpdated'));
+    const stored = localStorage.getItem('users');
+    if (!stored) {
+      // No localStorage data, save current state
+      localStorage.setItem('users', JSON.stringify(users));
+      window.dispatchEvent(new Event('usersUpdated'));
+      return;
+    }
+
+    try {
+      const storedUsers = JSON.parse(stored);
+      const storedIds = new Set(storedUsers.map((u: User) => u.id));
+      const currentIds = new Set(users.map((u) => u.id));
+      
+      // If localStorage has more users, it was updated externally (e.g., by UserManagement)
+      // Sync from localStorage instead of overwriting
+      if (storedUsers.length > users.length) {
+        setUsers(storedUsers);
+        return;
+      }
+      
+      // If localStorage has different users (new IDs), sync from localStorage
+      const hasNewUsers = Array.from(storedIds).some(id => !currentIds.has(id));
+      if (hasNewUsers && storedUsers.length >= users.length) {
+        setUsers(storedUsers);
+        return;
+      }
+      
+      // Otherwise, sync our state to localStorage
+      const currentStr = JSON.stringify(users);
+      if (stored !== currentStr) {
+        localStorage.setItem('users', currentStr);
+      }
+      window.dispatchEvent(new Event('usersUpdated'));
+    } catch (e) {
+      console.error('Failed to sync users to localStorage', e);
+    }
   }, [users]);
 
   // Listen for users updates from other components
@@ -342,11 +398,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
-  // Approve Job Order
-  const approveJobOrder = (jobOrderId: string): boolean => {
+  // Approve Job Order - useCallback to prevent recreation
+  const approveJobOrder = useCallback((jobOrderId: string): boolean => {
     try {
-      setJobOrders((prev) =>
-        prev.map((jo) =>
+      setJobOrders((prev) => {
+        const updated = prev.map((jo) =>
           jo.id === jobOrderId
             ? {
                 ...jo,
@@ -354,14 +410,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
                 updatedAt: new Date(),
               }
             : jo
-        )
       );
+        // Dispatch custom event to notify components
+        setTimeout(() => window.dispatchEvent(new CustomEvent('jobOrdersUpdated')), 0);
+        return updated;
+      });
       return true;
     } catch (error) {
       console.error('Error approving job order:', error);
       return false;
     }
-  };
+  }, []);
 
   // Reject Job Order
   const rejectJobOrder = (jobOrderId: string, reason: string): boolean => {
@@ -481,8 +540,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const jobOrder = jobOrders.find((jo) => jo.id === jobOrderId);
       if (!jobOrder) return null;
 
-      // Check if certificate already exists
-      const existingCert = certificates.find((c) => c.jobOrderId === jobOrderId);
+      // Check if certificate already exists (for this job order and format)
+      const existingCert = certificates.find((c) => c.jobOrderId === jobOrderId && c.certificateFormat === format);
       if (existingCert) return existingCert;
 
       // Generate new certificate
@@ -502,7 +561,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         jobOrderId: jobOrder.id,
         clientId: jobOrder.clientId,
         clientName: jobOrder.clientName,
-        serviceType: jobOrder.serviceType,
+        serviceType: jobOrder.serviceTypes[0] || 'Inspection', // Use first service type for certificate
         issueDate: new Date(),
         expiryDate: new Date(
           new Date().setFullYear(new Date().getFullYear() + 1)
@@ -511,6 +570,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         documentNumber: docNumber,
         stickerNumber: stickerNumber,
         documentType: 'Digital',
+        certificateFormat: format || 'A4', // A4 is mandatory/default, Card is optional
         status: 'Valid',
       };
 
@@ -522,7 +582,129 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
-  const value: AppContextType = {
+  // Create Training Session
+  const createTrainingSession = (
+    trainingData: Omit<TrainingSession, 'id' | 'createdAt' | 'updatedAt'>
+  ): boolean => {
+    try {
+      const newTraining: TrainingSession = {
+        ...trainingData,
+        id: `train-${Date.now()}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      setTrainingSessions((prev) => [...prev, newTraining]);
+      return true;
+    } catch (error) {
+      console.error('Error creating training session:', error);
+      return false;
+    }
+  };
+
+  // Update Training Session
+  const updateTrainingSession = (sessionId: string, updates: Partial<TrainingSession>): boolean => {
+    try {
+      setTrainingSessions((prev) =>
+        prev.map((ts) => {
+          if (ts.id === sessionId) {
+            const updated = {
+              ...ts,
+              ...updates,
+              updatedAt: new Date(),
+            };
+            
+            // If training session is approved, automatically generate certificates for participants who passed
+            if (updates.approvalStatus === 'Approved' && ts.approvalStatus !== 'Approved') {
+              // Generate A4 certificates (mandatory) for all passed participants
+              generateTrainingCertificates(sessionId, 'A4');
+            }
+            
+            return updated;
+          }
+          return ts;
+        })
+      );
+      // Dispatch custom event to notify components
+      setTimeout(() => window.dispatchEvent(new CustomEvent('trainingSessionsUpdated')), 0);
+      return true;
+    } catch (error) {
+      console.error('Error updating training session:', error);
+      return false;
+    }
+  };
+
+  // Generate Certificates for Training Participants (who passed)
+  const generateTrainingCertificates = (trainingSessionId: string, format: 'A4' | 'Card' = 'A4'): Certificate[] => {
+    try {
+      const session = trainingSessions.find((ts) => ts.id === trainingSessionId);
+      if (!session) return [];
+
+      // Get participants who passed the assessment
+      const passedParticipants = session.assessmentResults
+        .filter((ar) => ar.outcome === 'Pass')
+        .map((ar) => {
+          const participant = session.attendanceList.find((p) => p.id === ar.participantId);
+          return {
+            participantId: ar.participantId,
+            participantName: ar.participantName || participant?.name || 'Unknown',
+          };
+        });
+
+      // Generate certificates for each passed participant
+      const newCertificates: Certificate[] = passedParticipants.map((participant, index) => {
+        const certNumber = `CERT-TRAIN-${new Date().getFullYear()}-${String(
+          certificates.length + index + 1
+        ).padStart(3, '0')}`;
+        const docNumber = `DOC-${String(certificates.length + index + 1).padStart(3, '0')}`;
+        const stickerNumber = `STK-${String(certificates.length + index + 1).padStart(3, '0')}`;
+        const verificationCode = `${docNumber}-${stickerNumber}-${certNumber}`;
+
+        return {
+          id: `cert-train-${Date.now()}-${index}`,
+          certificateNumber: certNumber,
+          trainingSessionId: session.id,
+          jobOrderId: session.jobOrderId,
+          participantId: participant.participantId,
+          participantName: participant.participantName,
+          clientId: session.clientId,
+          clientName: '', // Will be filled from job order if available
+          serviceType: 'Training',
+          issueDate: new Date(),
+          expiryDate: new Date(
+            new Date().setFullYear(new Date().getFullYear() + 1)
+          ), // 1 year validity
+          verificationCode: verificationCode,
+          documentNumber: docNumber,
+          stickerNumber: stickerNumber,
+          documentType: 'Digital',
+          certificateFormat: format, // A4 (mandatory/default) or Card (optional)
+          status: 'Valid',
+        };
+      });
+
+      // Get client name from job order if available
+      if (session.jobOrderId) {
+        const jobOrder = jobOrders.find((jo) => jo.id === session.jobOrderId);
+        if (jobOrder) {
+          newCertificates.forEach((cert) => {
+            cert.clientId = jobOrder.clientId;
+            cert.clientName = jobOrder.clientName;
+          });
+        }
+      }
+
+      setCertificates((prev) => [...prev, ...newCertificates]);
+      return newCertificates;
+    } catch (error) {
+      console.error('Error generating training certificates:', error);
+      return [];
+    }
+  };
+
+  // Context value - memoize to ensure re-renders when state changes
+  // Only include state values in dependencies, not functions
+  const value: AppContextType = useMemo(() => ({
     clients,
     jobOrders,
     certificates,
@@ -544,7 +726,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     confirmPayment,
     rejectPayment,
     generateCertificate,
-  };
+    createTrainingSession,
+    updateTrainingSession,
+  }), [
+    jobOrders, // When jobOrders changes, context value updates -> triggers re-renders
+    certificates,
+    payments,
+    trainingSessions,
+    users,
+    currentUser,
+  ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

@@ -13,9 +13,12 @@ export interface StickerUsage {
   allocatedBy: string; // User ID who allocated
   allocatedByName: string;
   allocatedAt: Date;
-  status: 'Allocated' | 'Used' | 'Returned' | 'Cancelled';
+  status: 'Allocated' | 'Used' | 'Returned' | 'Cancelled' | 'Removed';
   usedAt?: Date;
   returnedAt?: Date;
+  removedAt?: Date; // When sticker was removed (removal detection)
+  removedBy?: string; // User ID who reported removal
+  removalReportedAt?: Date; // When removal was reported
 }
 
 const STORAGE_KEY_STICKER_USAGE = 'sticker-usage-tracking';
@@ -81,6 +84,8 @@ export const getAllStickerUsage = (): StickerUsage[] => {
     allocatedAt: new Date(u.allocatedAt),
     usedAt: u.usedAt ? new Date(u.usedAt) : undefined,
     returnedAt: u.returnedAt ? new Date(u.returnedAt) : undefined,
+    removedAt: u.removedAt ? new Date(u.removedAt) : undefined,
+    removalReportedAt: u.removalReportedAt ? new Date(u.removalReportedAt) : undefined,
   }));
 };
 
@@ -139,5 +144,46 @@ export const getStickerUsageForInspector = (inspectorId: string): StickerUsage[]
 export const getJobOrdersWithStickers = (): string[] => {
   const allUsage = getAllStickerUsage();
   return [...new Set(allUsage.map((u) => u.jobOrderId))];
+};
+
+/**
+ * Report sticker removal (removal detection)
+ */
+export const reportStickerRemoval = (
+  usageId: string,
+  reportedBy: string
+): boolean => {
+  const allUsage = getAllStickerUsage();
+  const usage = allUsage.find((u) => u.id === usageId);
+  
+  if (!usage) return false;
+  if (usage.status === 'Removed') return false; // Already reported
+  
+  usage.status = 'Removed';
+  usage.removedAt = new Date();
+  usage.removedBy = reportedBy;
+  usage.removalReportedAt = new Date();
+  
+  localStorage.setItem(STORAGE_KEY_STICKER_USAGE, JSON.stringify(allUsage));
+  return true;
+};
+
+/**
+ * Report sticker removal by job order ID
+ */
+export const reportStickerRemovalByJob = (
+  jobOrderId: string,
+  reportedBy: string
+): boolean => {
+  const usage = getStickerUsageForJob(jobOrderId);
+  if (!usage) return false;
+  return reportStickerRemoval(usage.id, reportedBy);
+};
+
+/**
+ * Get all removed stickers (for removal detection tracking)
+ */
+export const getRemovedStickers = (): StickerUsage[] => {
+  return getAllStickerUsage().filter((u) => u.status === 'Removed');
 };
 

@@ -44,6 +44,7 @@ interface StickerStockItem {
   id: string;
   lotId: string;
   lotNumber: string;
+  size?: string; // Sticker size (Large or Small)
   assignedTo: string;
   assignedToName: string;
   assignedToEmail?: string; // Added for better matching
@@ -478,6 +479,7 @@ export const StickerStock: React.FC = () => {
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.100' }}>
                 <TableCell sx={{ fontWeight: 600 }}>Lot Number</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Size</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Total Quantity</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Available</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Used/Allocated</TableCell>
@@ -489,7 +491,7 @@ export const StickerStock: React.FC = () => {
             <TableBody>
               {stock.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                     <Typography variant="body2" color="text.secondary">
                       No stock assigned yet. Request stock from manager.
                     </Typography>
@@ -507,6 +509,13 @@ export const StickerStock: React.FC = () => {
                         <Typography variant="body2" fontWeight={600}>
                           {item.lotNumber}
                         </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={item.size || 'Large'}
+                          size="small"
+                          color={item.size === 'Small' ? 'info' : 'primary'}
+                        />
                       </TableCell>
                       <TableCell>
                         <Typography variant="body1" fontWeight={600}>

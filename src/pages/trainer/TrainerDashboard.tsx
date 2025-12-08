@@ -13,17 +13,99 @@ import {
   Divider,
   Skeleton,
   Avatar,
+  Alert,
 } from '@mui/material';
-import { School as TrainingIcon, PendingActions as PendingIcon, Event as CalendarIcon } from '@mui/icons-material';
+import { School as TrainingIcon, PendingActions as PendingIcon, Event as CalendarIcon, Security as SecurityIcon } from '@mui/icons-material';
 import { StatsCard } from '@/components/common/StatsCard';
 import { useAppContext } from '@/context/AppContext';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { User } from '@/types';
 
 export const TrainerDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { trainingSessions } = useAppContext();
+  const { trainingSessions, currentUser, users: contextUsers } = useAppContext();
   const [loading, setLoading] = useState(true);
+  
+  // Load users from localStorage to get latest delegation data
+  const [localUsers, setLocalUsers] = React.useState<User[]>(() => {
+    const stored = localStorage.getItem('users');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to parse users from localStorage', e);
+        return contextUsers;
+      }
+    }
+    return contextUsers;
+  });
+
+  // Sync users from localStorage
+  React.useEffect(() => {
+    const loadUsers = () => {
+      const stored = localStorage.getItem('users');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setLocalUsers(parsed);
+        } catch (e) {
+          console.error('Failed to parse users from localStorage', e);
+        }
+      }
+    };
+
+    // Load on mount
+    loadUsers();
+
+    // Listen for storage changes (when delegation is updated)
+    window.addEventListener('storage', loadUsers);
+    // Listen for custom event when users are updated
+    window.addEventListener('usersUpdated', loadUsers);
+    
+    // Also check periodically (every 3 seconds)
+    const interval = setInterval(loadUsers, 3000);
+
+    return () => {
+      window.removeEventListener('storage', loadUsers);
+      window.removeEventListener('usersUpdated', loadUsers);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Check if current trainer is delegated to perform actions on behalf of someone
+  const activeDelegation = React.useMemo(() => {
+    if (!currentUser) return null;
+    
+    // Find if any user has delegated to this trainer (check multiple delegates)
+    const delegatingUser = localUsers.find((u) => {
+      if (!u.delegation?.active) return false;
+      
+      // Check new delegates array
+      if (u.delegation.delegates && u.delegation.delegates.length > 0) {
+        return u.delegation.delegates.some(
+          (delegate) => delegate.userId === currentUser.id && delegate.active
+        );
+      }
+      
+      // Legacy: check old delegatedToId field for backward compatibility
+      return u.delegation.delegatedToId === currentUser.id;
+    });
+    
+    if (!delegatingUser || !delegatingUser.delegation) return null;
+    
+    // Find which delegate this user is (priority)
+    const delegateInfo = delegatingUser.delegation.delegates?.find(
+      (d) => d.userId === currentUser.id
+    );
+    
+    return {
+      ...delegatingUser.delegation,
+      delegatingUserName: delegatingUser.name,
+      currentDelegatePriority: delegateInfo?.priority || 1,
+      isPrimaryShadow: delegateInfo?.priority === 1,
+    };
+  }, [currentUser, localUsers]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -69,6 +151,29 @@ export const TrainerDashboard: React.FC = () => {
           Manage training sessions and submit assessment results
         </Typography>
       </Box>
+
+      {/* Shadow Role Alert */}
+      {activeDelegation && (
+        <Alert
+          severity="info"
+          icon={<SecurityIcon />}
+          sx={{ mb: 3, borderRadius: 2 }}
+        >
+          <Typography variant="body2">
+            <strong>Shadow Role Active:</strong> You are performing actions on behalf of{' '}
+            <strong>{(activeDelegation as any).delegatingUserName || activeDelegation.delegatedByName}</strong>.
+            {activeDelegation.delegates && activeDelegation.delegates.length > 1 && (
+              <> You are <strong>Shadow {(activeDelegation as any).currentDelegatePriority || 1}</strong>
+                {(activeDelegation as any).isPrimaryShadow 
+                  ? ' (Primary - will perform actions if available)' 
+                  : ` (Will perform actions if Shadow ${((activeDelegation as any).currentDelegatePriority || 1) - 1} is busy)`}
+              </>
+            )}
+            {' '}Your actions will appear as "{(activeDelegation as any).delegatingUserName || activeDelegation.delegatedByName}" 
+            in the front end, but activity logs will show your name ({currentUser?.name}) for accountability.
+          </Typography>
+        </Alert>
+      )}
 
       {/* Quick Metrics */}
       <Grid container spacing={3} sx={{ mb: 4 }}>

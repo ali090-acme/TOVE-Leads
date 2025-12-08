@@ -16,6 +16,7 @@ import {
   TextField,
   Snackbar,
   CircularProgress,
+  Chip,
 } from '@mui/material';
 import { CheckCircle as ConfirmIcon, Cancel as RejectIcon, Description as DocumentIcon } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -162,12 +163,14 @@ export const PaymentVerification: React.FC = () => {
               </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography variant="body2" color="text.secondary">
-                Service Type
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                Service Types
               </Typography>
-              <Typography variant="body1" fontWeight={500}>
-                {jobOrder.serviceType}
-              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {jobOrder.serviceTypes?.map((type) => (
+                  <Chip key={type} label={type} size="small" color="primary" />
+                ))}
+              </Box>
             </Grid>
             <Grid item xs={12} md={6}>
               <Typography variant="body2" color="text.secondary">

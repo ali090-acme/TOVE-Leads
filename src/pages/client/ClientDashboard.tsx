@@ -281,9 +281,11 @@ export const ClientDashboard: React.FC = () => {
                           </Avatar>
                           <Box sx={{ flexGrow: 1 }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                              <Typography variant="body1" fontWeight={600}>
-                                {service.serviceType}
-                              </Typography>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                                {service.serviceTypes?.map((type) => (
+                                  <Chip key={type} label={type} size="small" color="primary" />
+                                ))}
+                              </Box>
                               <Chip
                                 label={service.status}
                                 size="small"
@@ -460,7 +462,7 @@ export const ClientDashboard: React.FC = () => {
                                 Job Order: {payment.jobOrderId}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
-                                {jobOrder ? `${jobOrder.serviceType} • ${format(jobOrder.dateTime, 'MMM dd, yyyy')}` : 'N/A'}
+                                {jobOrder ? `${jobOrder.serviceTypes?.join(', ') || 'N/A'} • ${format(jobOrder.dateTime, 'MMM dd, yyyy')}` : 'N/A'}
                               </Typography>
                             </Box>
                           </Box>
@@ -476,7 +478,7 @@ export const ClientDashboard: React.FC = () => {
                                   state: {
                                     paymentId: payment.id,
                                     amount: payment.amount,
-                                    service: jobOrder?.serviceType || 'Service Payment',
+                                    service: jobOrder?.serviceTypes?.join(', ') || 'Service Payment',
                                   },
                                 });
                               }}

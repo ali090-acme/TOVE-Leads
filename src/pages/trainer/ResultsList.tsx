@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -17,6 +17,16 @@ import { useNavigate } from 'react-router-dom';
 export const ResultsList: React.FC = () => {
   const navigate = useNavigate();
   const { trainingSessions } = useAppContext();
+  const [, forceUpdate] = useState({});
+
+  // Listen for training sessions updates
+  useEffect(() => {
+    const handleUpdate = () => {
+      forceUpdate({});
+    };
+    window.addEventListener('trainingSessionsUpdated', handleUpdate);
+    return () => window.removeEventListener('trainingSessionsUpdated', handleUpdate);
+  }, []);
 
   return (
     <Box>
