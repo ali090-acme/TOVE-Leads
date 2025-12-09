@@ -98,6 +98,7 @@ export interface Client {
   serviceHistory: JobOrder[];
   // Multi-region support: client can work with multiple regions
   regions?: string[]; // Array of region IDs (e.g., ['lahore', 'isb', 'karachi'])
+  teams?: string[]; // Array of team IDs assigned to this client
   // Legacy fields for backward compatibility (single region)
   regionId?: string; // Single region assignment (deprecated, use regions array)
   teamId?: string; // Team assignment (within region) - used for job order context

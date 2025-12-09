@@ -103,6 +103,23 @@ export const NewJobOrder: React.FC = () => {
     setAvailableTags(tags);
   };
 
+  // Get available sequence numbers for a sticker stock item
+  const getAvailableSequenceNumbers = (stickerStockId: string): string[] => {
+    const selectedSticker = availableStickers.find((s) => s.id === stickerStockId);
+    if (!selectedSticker || !selectedSticker.sequenceNumbers) return [];
+    
+    // Get all allocated sequence numbers for this stock
+    const { getAllStickerUsage } = require('@/utils/stickerTracking');
+    const usage = getAllStickerUsage();
+    const allocatedSequences = usage
+      .filter((u: any) => u.stickerStockId === stickerStockId && (u.status === 'Allocated' || u.status === 'Used'))
+      .map((u: any) => u.stickerNumber)
+      .filter((sn: string) => sn); // Filter out undefined/null
+    
+    // Return available sequence numbers (not yet allocated)
+    return selectedSticker.sequenceNumbers.filter((seq: string) => !allocatedSequences.includes(seq));
+  };
+
   const loadAvailableStickers = () => {
     const STORAGE_KEY_STOCK = 'sticker-stock';
     const storedStock = localStorage.getItem(STORAGE_KEY_STOCK);
@@ -243,14 +260,14 @@ export const NewJobOrder: React.FC = () => {
         newErrors.newClientPhone = 'Phone number is required';
       }
       
-      // Check if client already exists by company name only (for confidentiality - no region info revealed)
+      // Check if client already exists by email (for confidentiality - no region info revealed)
       // This validation prevents duplicate client creation
-      // Note: Company name must be unique - same email is allowed for different companies
-      if (newClientData.name.trim()) {
-        const existsCheck = checkClientExists(newClientData.name);
+      // Note: Email must be unique - same company name is allowed for different clients
+      if (newClientData.email.trim()) {
+        const existsCheck = checkClientExists(newClientData.email);
         if (existsCheck.exists) {
           setClientExistsError({ show: true, clientId: existsCheck.clientId });
-          newErrors.clientExists = 'A client with this company name already exists in the system';
+          newErrors.clientExists = 'A client with this email already exists in the system';
           // This error will prevent form submission
         } else {
           setClientExistsError({ show: false });
@@ -284,6 +301,11 @@ export const NewJobOrder: React.FC = () => {
     if (!selectedStickerStockId && !selectedTagId) {
       newErrors.stickerOrTag = 'Please select either a sticker or a tag (at least one is required)';
     }
+    
+    // Validate sequence number if sticker is selected
+    if (selectedStickerStockId && !stickerNumber) {
+      newErrors.stickerNumber = 'Please select a sequence number from your allocated stickers.';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -312,16 +334,16 @@ export const NewJobOrder: React.FC = () => {
       return;
     }
 
-    // For new client tab, check for duplicates by company name BEFORE validation
+    // For new client tab, check for duplicates by email BEFORE validation
     if (activeTab === 1) {
-      if (newClientData.name.trim()) {
-        const existsCheck = checkClientExists(newClientData.name);
+      if (newClientData.email.trim()) {
+        const existsCheck = checkClientExists(newClientData.email);
         if (existsCheck.exists) {
           setClientExistsError({ show: true, clientId: existsCheck.clientId });
-          setErrors({ ...errors, clientExists: 'A client with this company name already exists in the system' });
+          setErrors({ ...errors, clientExists: 'A client with this email already exists in the system' });
           setSnackbar({
             open: true,
-            message: 'A client with this company name already exists in the system. Please use the "Existing Client" tab to select this client.',
+            message: 'A client with this email already exists in the system. Please use the "Existing Client" tab to select this client.',
             severity: 'error',
           });
           return; // Prevent submission
@@ -355,13 +377,13 @@ export const NewJobOrder: React.FC = () => {
 
       // If new client, create it first (mock - in real app, this would be API call)
       if (activeTab === 1) {
-        // Double-check client doesn't exist by company name (final validation)
-        const existsCheck = checkClientExists(newClientData.name);
+        // Double-check client doesn't exist by email (final validation)
+        const existsCheck = checkClientExists(newClientData.email);
         
         if (existsCheck.exists) {
           setSnackbar({
             open: true,
-            message: 'A client with this company name already exists in the system. Please use the "Existing Client" tab to select this client.',
+            message: 'A client with this email already exists in the system. Please use the "Existing Client" tab to select this client.',
             severity: 'error',
           });
           setClientExistsError({ show: true, clientId: existsCheck.clientId });
@@ -751,7 +773,7 @@ export const NewJobOrder: React.FC = () => {
                   Client Already Exists
                 </Typography>
                 <Typography variant="body2">
-                  A client with this company name is already registered in the system. Please use the "Existing Client" tab to select this client.
+                  A client with this email is already registered in the system. Please use the "Existing Client" tab to select this client.
                 </Typography>
               </Alert>
             )}
@@ -774,23 +796,9 @@ export const NewJobOrder: React.FC = () => {
                     }
                     setClientExistsError({ show: false });
                     
-                    // Real-time duplicate check when company name is entered
-                    if (name.trim()) {
-                      const existsCheck = checkClientExists(name);
-                      if (existsCheck.exists) {
-                        setClientExistsError({ show: true, clientId: existsCheck.clientId });
-                        setErrors({ ...errors, clientExists: 'A client with this company name already exists in the system' });
-                      } else {
-                        setClientExistsError({ show: false });
-                        if (errors.clientExists) {
-                          const newErrors = { ...errors };
-                          delete newErrors.clientExists;
-                          setErrors(newErrors);
-                        }
-                      }
-                    }
+                    // Note: Company name can be duplicate, only email is checked for uniqueness
                   }}
-                  error={!!errors.newClientName || !!errors.clientExists || clientExistsError.show}
+                  error={!!errors.newClientName}
                   helperText={errors.newClientName}
                 />
               </Grid>
@@ -858,7 +866,7 @@ export const NewJobOrder: React.FC = () => {
                     
                     // Note: Phone can be duplicate, only email is checked for uniqueness
                   }}
-                  error={!!errors.newClientPhone || !!errors.clientExists || clientExistsError.show}
+                  error={!!errors.newClientPhone}
                   helperText={errors.newClientPhone}
                 />
               </Grid>
@@ -1092,6 +1100,11 @@ export const NewJobOrder: React.FC = () => {
                   {errors.stickerOrTag}
                 </Alert>
               )}
+              {errors.stickerNumber && (
+                <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                  {errors.stickerNumber}
+                </Alert>
+              )}
               {showStickerSection && (
                 <Grid container spacing={2}>
                   {availableStickers.length === 0 ? (
@@ -1119,6 +1132,11 @@ export const NewJobOrder: React.FC = () => {
                             if (selected) {
                               setStickerNumber('');
                               setStickerSize(selected.size || 'Large');
+                              // Auto-select first available sequence number
+                              const availableSequences = getAvailableSequenceNumbers(e.target.value);
+                              if (availableSequences.length > 0) {
+                                setStickerNumber(availableSequences[0]);
+                              }
                             }
                           }}
                           helperText="Select from your assigned sticker lots"
@@ -1147,21 +1165,47 @@ export const NewJobOrder: React.FC = () => {
                           <Grid item xs={12} md={4}>
                             <TextField
                               fullWidth
-                              label="Sticker Number (Optional)"
+                              select
+                              label="Select Sequence Number"
                               value={stickerNumber}
                               onChange={(e) => setStickerNumber(e.target.value)}
-                              placeholder="Enter specific sticker number if applicable"
-                              helperText="Track specific sticker number used for this job"
-                            />
+                              helperText="Select from your allocated sequence numbers"
+                              required
+                            >
+                              {(() => {
+                                const selectedSticker = availableStickers.find((s) => s.id === selectedStickerStockId);
+                                const availableSequences = selectedSticker?.sequenceNumbers 
+                                  ? getAvailableSequenceNumbers(selectedStickerStockId)
+                                  : [];
+                                
+                                if (availableSequences.length === 0) {
+                                  return (
+                                    <MenuItem value="" disabled>
+                                      No available sequence numbers
+                                    </MenuItem>
+                                  );
+                                }
+                                
+                                return availableSequences.map((seq: string) => (
+                                  <MenuItem key={seq} value={seq}>
+                                    {seq}
+                                  </MenuItem>
+                                ));
+                              })()}
+                            </TextField>
                           </Grid>
                           <Grid item xs={12}>
                             <Alert severity="info" sx={{ borderRadius: 2 }}>
                               <Typography variant="body2">
-                                <strong>Selected:</strong> {availableStickers.find((s) => s.id === selectedStickerStockId)?.lotNumber} ({stickerSize})
+                                <strong>Selected Lot:</strong> {availableStickers.find((s) => s.id === selectedStickerStockId)?.lotNumber} ({stickerSize})
                                 <br />
-                                <strong>Available:</strong> {availableStickers.find((s) => s.id === selectedStickerStockId)?.availableQuantity} sticker(s)
+                                <strong>Available Quantity:</strong> {availableStickers.find((s) => s.id === selectedStickerStockId)?.availableQuantity} sticker(s)
                                 <br />
-                                This sticker will be allocated to this job order for accountability and tracking.
+                                <strong>Selected Sequence:</strong> {stickerNumber || 'Not selected'}
+                                <br />
+                                <Typography variant="caption" component="span">
+                                  You can only use sequence numbers that were allocated to you. This ensures proper tracking and prevents duplicate usage.
+                                </Typography>
                               </Typography>
                             </Alert>
                           </Grid>

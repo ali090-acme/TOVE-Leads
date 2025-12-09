@@ -349,22 +349,6 @@ export const ManagerDashboard: React.FC = () => {
         </Grid>
       </Grid>
 
-      {/* Critical Alerts */}
-      {criticalAlerts > 0 && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <Typography variant="body1" fontWeight={500} gutterBottom>
-            {criticalAlerts} Critical Issues Requiring Attention
-          </Typography>
-          <Typography variant="body2">
-            • High number of rejected reports in Inspection department
-            <br />• Client escalation: ABC Construction Ltd - Job Order JO-2025001
-          </Typography>
-          <Button variant="outlined" size="small" sx={{ mt: 1 }}>
-            View Details
-          </Button>
-        </Alert>
-      )}
-
       {/* Charts Row 1 */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {/* Revenue Trend */}

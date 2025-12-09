@@ -3,13 +3,13 @@ import { Client, User } from '@/types';
 const STORAGE_KEY_CLIENTS = 'clients';
 
 /**
- * Check if a client already exists in the system (by company name only)
+ * Check if a client already exists in the system (by email only)
  * Returns the existing client if found, null otherwise
  * This function does NOT reveal region/team information for confidentiality
- * Note: Only company name (client.name) is checked - same email is allowed for different clients
+ * Note: Only email is checked - same company name is allowed for different clients
  */
 export const checkClientExists = (
-  companyName: string
+  email: string
 ): { exists: boolean; clientId?: string } => {
   const stored = localStorage.getItem(STORAGE_KEY_CLIENTS);
   if (!stored) {
@@ -19,13 +19,13 @@ export const checkClientExists = (
   try {
     const clients: Client[] = JSON.parse(stored);
     
-    // Check for duplicate by company name only (case-insensitive, normalized)
-    const normalizeName = (name: string) => name.toLowerCase().trim().replace(/\s+/g, ' ');
-    const nameMatch = clients.find(
-      (c) => normalizeName(c.name) === normalizeName(companyName)
+    // Check for duplicate by email only (case-insensitive)
+    const normalizeEmail = (email: string) => email.toLowerCase().trim();
+    const emailMatch = clients.find(
+      (c) => normalizeEmail(c.email) === normalizeEmail(email)
     );
-    if (nameMatch) {
-      return { exists: true, clientId: nameMatch.id };
+    if (emailMatch) {
+      return { exists: true, clientId: emailMatch.id };
     }
 
     return { exists: false };

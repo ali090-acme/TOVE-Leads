@@ -55,6 +55,7 @@ interface StickerStockItem {
   assignedToEmail?: string; // Added for better matching
   assignedToType: 'Region' | 'Inspector';
   quantity: number;
+  sequenceNumbers?: string[]; // Array of 6-digit sequence numbers assigned
   issuedDate: Date;
   issuedBy: string;
 }
@@ -211,6 +212,8 @@ export const StickerStock: React.FC = () => {
         .map((s: any) => ({
           ...s,
           issuedDate: new Date(s.issuedDate),
+          // Ensure sequenceNumbers array exists (for old stock items)
+          sequenceNumbers: s.sequenceNumbers !== undefined ? s.sequenceNumbers : [],
         }));
       setStock(inspectorStock);
     }
@@ -491,6 +494,7 @@ export const StickerStock: React.FC = () => {
                 <TableCell sx={{ fontWeight: 600 }}>Lot Number</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Size</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Total Quantity</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Sequence Numbers</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Available</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Used/Allocated</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Issued Date</TableCell>
@@ -501,7 +505,7 @@ export const StickerStock: React.FC = () => {
             <TableBody>
               {stock.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
                     <Typography variant="body2" color="text.secondary">
                       No stock assigned yet. Request stock from manager.
                     </Typography>
@@ -531,6 +535,18 @@ export const StickerStock: React.FC = () => {
                         <Typography variant="body1" fontWeight={600}>
                           {item.quantity}
                         </Typography>
+                      </TableCell>
+                      <TableCell>
+                        {item.sequenceNumbers && item.sequenceNumbers.length > 0 ? (
+                          <Typography variant="body2" fontFamily="monospace" sx={{ fontSize: '0.75rem' }}>
+                            {item.sequenceNumbers.length <= 3 
+                              ? item.sequenceNumbers.join(', ')
+                              : `${item.sequenceNumbers[0]} - ${item.sequenceNumbers[item.sequenceNumbers.length - 1]} (${item.sequenceNumbers.length})`
+                            }
+                          </Typography>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">N/A</Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body1" fontWeight={600} color={available > 0 ? 'success.main' : 'error.main'}>

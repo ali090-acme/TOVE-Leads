@@ -57,6 +57,10 @@ interface StickerLot {
   status: 'Active' | 'Depleted' | 'Archived';
   createdAt: Date;
   createdBy: string;
+  // Sequence number tracking (5-digit or 6-digit)
+  startSequence: number; // Starting sequence number (e.g., 82812 or 100000)
+  endSequence: number; // Ending sequence number (e.g., 82999 or 199999)
+  currentSequence: number; // Next available sequence number
 }
 
 interface StickerStock {
@@ -69,6 +73,7 @@ interface StickerStock {
   assignedToEmail?: string; // Added for better matching
   assignedToType: 'Region' | 'Inspector';
   quantity: number;
+  sequenceNumbers: string[]; // Array of sequence numbers assigned (5-digit or 6-digit, e.g., ['82812', '82813'] or ['100001', '100002'])
   issuedDate: Date;
   issuedBy: string;
 }
@@ -120,7 +125,7 @@ export const StickerManager: React.FC = () => {
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<{ anchor: HTMLElement; type: string; id: string } | null>(null);
   
-  const [newLot, setNewLot] = useState({ lotNumber: '', size: '', quantity: 0 });
+  const [newLot, setNewLot] = useState({ lotNumber: '', size: '', quantity: 0, startSequence: '' });
   const [issueData, setIssueData] = useState({ lotId: '', assignedTo: '', assignedToType: 'Inspector' as 'Region' | 'Inspector', quantity: 0 });
   const [transferData, setTransferData] = useState({ from: '', to: '', quantity: 0, lotNumber: '' });
   const [requestData, setRequestData] = useState({ quantity: 0, size: 'Large' as 'Large' | 'Small', lotNumber: '' });
@@ -182,7 +187,14 @@ export const StickerManager: React.FC = () => {
 
     if (storedLots) {
       const parsed = JSON.parse(storedLots);
-      setLots(parsed.map((lot: any) => ({ ...lot, createdAt: new Date(lot.createdAt) })));
+      setLots(parsed.map((lot: any) => ({
+        ...lot,
+        createdAt: new Date(lot.createdAt),
+        // Add default sequence numbers for old lots that don't have them
+        startSequence: lot.startSequence ?? 0,
+        endSequence: lot.endSequence ?? (lot.startSequence ? lot.startSequence + lot.quantity - 1 : lot.quantity - 1),
+        currentSequence: lot.currentSequence ?? lot.startSequence ?? 0,
+      })));
     } else {
       // Mock initial data
       const mockLots: StickerLot[] = [
@@ -196,6 +208,9 @@ export const StickerManager: React.FC = () => {
           status: 'Active',
           createdAt: new Date('2025-01-01'),
           createdBy: 'admin',
+          startSequence: 82812, // 5-digit format (like existing sticker)
+          endSequence: 83811,
+          currentSequence: 83162, // Next available sequence
         },
         {
           id: 'lot-2',
@@ -207,6 +222,9 @@ export const StickerManager: React.FC = () => {
           status: 'Active',
           createdAt: new Date('2025-01-05'),
           createdBy: 'admin',
+          startSequence: 200000, // 6-digit format
+          endSequence: 200499,
+          currentSequence: 200200, // Next available sequence
         },
       ];
       setLots(mockLots);
@@ -215,7 +233,13 @@ export const StickerManager: React.FC = () => {
 
     if (storedStock) {
       const parsed = JSON.parse(storedStock);
-      setStock(parsed.map((s: any) => ({ ...s, issuedDate: new Date(s.issuedDate) })));
+      setStock(parsed.map((s: any) => ({
+        ...s,
+        issuedDate: new Date(s.issuedDate),
+        // Ensure sequenceNumbers array exists (for old stock items)
+        // Only set empty array if sequenceNumbers doesn't exist, don't override if it's already there
+        sequenceNumbers: s.sequenceNumbers !== undefined ? s.sequenceNumbers : [],
+      })));
     }
 
     if (storedTransfers) {
@@ -262,9 +286,37 @@ export const StickerManager: React.FC = () => {
     localStorage.removeItem(dummyKey);
   };
 
+  // Helper function to format sequence number (5-digit or 6-digit based on value)
+  const formatSequenceNumber = (num: number | undefined | null): string => {
+    if (num === undefined || num === null || isNaN(num)) {
+      return 'N/A';
+    }
+    // If number is less than 100000, format as 5-digit (like 82812)
+    // Otherwise format as 6-digit (like 100000)
+    if (num < 100000) {
+      return num.toString().padStart(5, '0');
+    }
+    return num.toString().padStart(6, '0');
+  };
+
   const handleCreateLot = () => {
-    if (!newLot.lotNumber || !newLot.size || newLot.quantity <= 0) {
+    if (!newLot.lotNumber || !newLot.size || newLot.quantity <= 0 || !newLot.startSequence) {
       setSnackbar({ open: true, message: 'Please fill all fields correctly', severity: 'error' });
+      return;
+    }
+
+    const startSeq = parseInt(newLot.startSequence);
+    // Allow 5-digit (10000-99999) or 6-digit (100000-999999) numbers
+    if (isNaN(startSeq) || startSeq < 10000 || startSeq > 999999) {
+      setSnackbar({ open: true, message: 'Start sequence must be a 5-digit (10000-99999) or 6-digit (100000-999999) number', severity: 'error' });
+      return;
+    }
+
+    const endSeq = startSeq + newLot.quantity - 1;
+    // Check limit based on starting digit count
+    const maxLimit = startSeq < 100000 ? 99999 : 999999;
+    if (endSeq > maxLimit) {
+      setSnackbar({ open: true, message: `Sequence range exceeds limit. Maximum allowed: ${maxLimit}. Please reduce quantity or change start sequence.`, severity: 'error' });
       return;
     }
 
@@ -278,6 +330,9 @@ export const StickerManager: React.FC = () => {
       status: 'Active',
       createdAt: new Date(),
       createdBy: currentUser?.id || 'system',
+      startSequence: startSeq,
+      endSequence: endSeq,
+      currentSequence: startSeq, // Start from beginning
     };
 
     const updatedLots = [...lots, lot];
@@ -295,9 +350,9 @@ export const StickerManager: React.FC = () => {
       currentUser?.currentRole
     );
 
-    setSnackbar({ open: true, message: 'Sticker lot created successfully', severity: 'success' });
+    setSnackbar({ open: true, message: `Sticker lot created successfully. Sequence range: ${formatSequenceNumber(startSeq)} - ${formatSequenceNumber(endSeq)}`, severity: 'success' });
     setLotDialogOpen(false);
-    setNewLot({ lotNumber: '', size: '', quantity: 0 });
+    setNewLot({ lotNumber: '', size: '', quantity: 0, startSequence: '' });
   };
 
   const handleIssueStock = () => {
@@ -312,6 +367,18 @@ export const StickerManager: React.FC = () => {
       return;
     }
 
+    // Check if sequence range is sufficient
+    if (lot.currentSequence + issueData.quantity - 1 > lot.endSequence) {
+      setSnackbar({ open: true, message: 'Insufficient sequence numbers available in this lot', severity: 'error' });
+      return;
+    }
+
+    // Generate sequence numbers for this issue
+    const sequenceNumbers: string[] = [];
+    for (let i = 0; i < issueData.quantity; i++) {
+      sequenceNumbers.push(formatSequenceNumber(lot.currentSequence + i));
+    }
+
     const assignedUser = users.find((u) => u.id === issueData.assignedTo);
     const stockItem: StickerStock = {
       id: `stock-${Date.now()}`,
@@ -323,17 +390,19 @@ export const StickerManager: React.FC = () => {
       assignedToEmail: assignedUser?.email || undefined, // Store email for better matching
       assignedToType: issueData.assignedToType,
       quantity: issueData.quantity,
+      sequenceNumbers: sequenceNumbers, // Assign sequence numbers
       issuedDate: new Date(),
       issuedBy: currentUser?.id || 'system',
     };
 
-    // Update lot
+    // Update lot (increment currentSequence)
     const updatedLots = lots.map((l) =>
       l.id === issueData.lotId
         ? {
             ...l,
             issuedQuantity: l.issuedQuantity + issueData.quantity,
             availableQuantity: l.availableQuantity - issueData.quantity,
+            currentSequence: l.currentSequence + issueData.quantity, // Update next available sequence
             status: l.availableQuantity - issueData.quantity === 0 ? 'Depleted' : l.status,
           }
         : l
@@ -355,8 +424,8 @@ export const StickerManager: React.FC = () => {
       'DOCUMENT',
       stockItem.id,
       `Stock issued to ${stockItem.assignedToName}`,
-      `Issued ${issueData.quantity} stickers from ${lot.lotNumber}`,
-      { lotNumber: lot.lotNumber, quantity: issueData.quantity, assignedTo: stockItem.assignedToName },
+      `Issued ${issueData.quantity} stickers from ${lot.lotNumber} (Sequence: ${sequenceNumbers[0]} - ${sequenceNumbers[sequenceNumbers.length - 1]})`,
+      { lotNumber: lot.lotNumber, quantity: issueData.quantity, assignedTo: stockItem.assignedToName, sequenceNumbers: sequenceNumbers },
       currentUser?.id,
       currentUser?.name,
       currentUser?.currentRole
@@ -502,6 +571,23 @@ export const StickerManager: React.FC = () => {
       return;
     }
 
+    // Check if sequence range is sufficient
+    if (selectedLot.currentSequence + request.quantity - 1 > selectedLot.endSequence) {
+      setSnackbar({ 
+        open: true, 
+        message: 'Insufficient sequence numbers available in this lot', 
+        severity: 'error' 
+      });
+      setMenuAnchor(null);
+      return;
+    }
+
+    // Generate sequence numbers for this approval
+    const sequenceNumbers: string[] = [];
+    for (let i = 0; i < request.quantity; i++) {
+      sequenceNumbers.push(formatSequenceNumber(selectedLot.currentSequence + i));
+    }
+
     // Find the user who requested - improved matching
     // CRITICAL: Use request.requestedBy ID first, then try to find user by that ID
     let requestedUser = users.find((u) => u.id === request.requestedBy);
@@ -537,17 +623,19 @@ export const StickerManager: React.FC = () => {
       assignedToEmail: assignedToEmail,
       assignedToType: request.requestedByType,
       quantity: request.quantity,
+      sequenceNumbers: sequenceNumbers, // Assign sequence numbers
       issuedDate: new Date(),
       issuedBy: currentUser?.id || 'system',
     };
 
-    // Update lot quantities
+    // Update lot quantities and sequence
     const updatedLots = lots.map((l) =>
       l.id === selectedLot!.id
         ? {
             ...l,
             issuedQuantity: l.issuedQuantity + request.quantity,
             availableQuantity: l.availableQuantity - request.quantity,
+            currentSequence: l.currentSequence + request.quantity, // Update next available sequence
             status: l.availableQuantity - request.quantity === 0 ? 'Depleted' : l.status,
           }
         : l
@@ -597,8 +685,8 @@ export const StickerManager: React.FC = () => {
       'DOCUMENT',
       requestId,
       `Request approved and stock issued`,
-      `Approved stock request for ${request.requestedByName} and issued ${request.quantity} stickers from ${selectedLot.lotNumber}`,
-      { requestId, requestedBy: request.requestedByName, quantity: request.quantity, lotNumber: selectedLot.lotNumber },
+      `Approved stock request for ${request.requestedByName} and issued ${request.quantity} stickers from ${selectedLot.lotNumber} (Sequence: ${sequenceNumbers[0]} - ${sequenceNumbers[sequenceNumbers.length - 1]})`,
+      { requestId, requestedBy: request.requestedByName, quantity: request.quantity, lotNumber: selectedLot.lotNumber, sequenceNumbers: sequenceNumbers },
       currentUser?.id,
       currentUser?.name,
       currentUser?.currentRole
@@ -713,6 +801,7 @@ export const StickerManager: React.FC = () => {
                   <TableCell sx={{ fontWeight: 600 }} align="right">Total Quantity</TableCell>
                   <TableCell sx={{ fontWeight: 600 }} align="right">Issued</TableCell>
                   <TableCell sx={{ fontWeight: 600 }} align="right">Available</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Sequence Range</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Created Date</TableCell>
                 </TableRow>
@@ -720,7 +809,7 @@ export const StickerManager: React.FC = () => {
               <TableBody>
                 {lots.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                       <Typography variant="body2" color="text.secondary">
                         No sticker lots found. Create a new lot to get started.
                       </Typography>
@@ -738,6 +827,22 @@ export const StickerManager: React.FC = () => {
                       <TableCell align="right">{lot.quantity}</TableCell>
                       <TableCell align="right">{lot.issuedQuantity}</TableCell>
                       <TableCell align="right">{lot.availableQuantity}</TableCell>
+                      <TableCell>
+                        {lot.startSequence !== undefined && lot.startSequence !== null ? (
+                          <>
+                            <Typography variant="body2" fontFamily="monospace">
+                              {formatSequenceNumber(lot.startSequence)} - {formatSequenceNumber(lot.endSequence)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Next: {formatSequenceNumber(lot.currentSequence)}
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            Sequence numbers not configured
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Chip
                           label={lot.status}
@@ -777,13 +882,14 @@ export const StickerManager: React.FC = () => {
                   <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
                   <TableCell sx={{ fontWeight: 600 }} align="right">Quantity</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Sequence Numbers</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Issued Date</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {stock.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                       <Typography variant="body2" color="text.secondary">
                         No stock issued yet.
                       </Typography>
@@ -798,6 +904,42 @@ export const StickerManager: React.FC = () => {
                         <Chip label={s.assignedToType} size="small" />
                       </TableCell>
                       <TableCell align="right">{s.quantity}</TableCell>
+                      <TableCell>
+                        {s.sequenceNumbers && s.sequenceNumbers.length > 0 ? (
+                          <Box>
+                            <Typography 
+                              variant="body2" 
+                              fontFamily="monospace" 
+                              sx={{ 
+                                fontSize: '0.875rem', 
+                                fontWeight: 600,
+                                color: 'primary.main',
+                                letterSpacing: '0.5px'
+                              }}
+                            >
+                              {s.sequenceNumbers.length === 1 
+                                ? s.sequenceNumbers[0]
+                                : s.sequenceNumbers.length <= 3 
+                                ? s.sequenceNumbers.join(', ')
+                                : `${s.sequenceNumbers[0]} - ${s.sequenceNumbers[s.sequenceNumbers.length - 1]}`
+                              }
+                            </Typography>
+                            {s.sequenceNumbers.length > 3 && (
+                              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                                ({s.sequenceNumbers.length} stickers)
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : (
+                          <Chip 
+                            label="Not configured" 
+                            size="small" 
+                            color="warning" 
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                        )}
+                      </TableCell>
                       <TableCell>{format(s.issuedDate, 'MMM dd, yyyy')}</TableCell>
                     </TableRow>
                   ))
@@ -1007,6 +1149,17 @@ export const StickerManager: React.FC = () => {
                 label="Quantity"
                 value={newLot.quantity}
                 onChange={(e) => setNewLot({ ...newLot, quantity: parseInt(e.target.value) || 0 })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Start Sequence Number"
+                value={newLot.startSequence}
+                onChange={(e) => setNewLot({ ...newLot, startSequence: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                placeholder="e.g., 82812 or 100000"
+                helperText="Enter starting sequence number (5-digit: 10000-99999 or 6-digit: 100000-999999). End sequence will be calculated automatically."
+                inputProps={{ maxLength: 6 }}
               />
             </Grid>
           </Grid>
