@@ -43,7 +43,7 @@ import {
   fileToBase64,
 } from '@/utils/offlineQueue';
 import { CloudOff as CloudOffIcon, CloudDone as CloudDoneIcon, PhotoCamera as PhotoCameraIcon, Inventory as InventoryIcon } from '@mui/icons-material';
-import { allocateStickerToJob, canAllocateSticker, getAvailableStickerQuantity } from '@/utils/stickerTracking';
+import { allocateStickerToJob, canAllocateSticker, getAvailableStickerQuantity, getAllStickerUsage } from '@/utils/stickerTracking';
 import { getAvailableTags, allocateTagToJob } from '@/utils/tagTracking';
 import { StickerSize } from '@/types';
 import { checkClientExists, getFilteredClients } from '@/utils/clientValidation';
@@ -109,7 +109,6 @@ export const NewJobOrder: React.FC = () => {
     if (!selectedSticker || !selectedSticker.sequenceNumbers) return [];
     
     // Get all allocated sequence numbers for this stock
-    const { getAllStickerUsage } = require('@/utils/stickerTracking');
     const usage = getAllStickerUsage();
     const allocatedSequences = usage
       .filter((u: any) => u.stickerStockId === stickerStockId && (u.status === 'Allocated' || u.status === 'Used'))
