@@ -142,7 +142,8 @@ export const ClientManagement: React.FC = () => {
           const parsed = JSON.parse(storedPayments);
           setPayments(parsed.map((p: any) => ({
             ...p,
-            date: new Date(p.date),
+            createdAt: new Date(p.createdAt || p.date || Date.now()),
+            confirmedAt: p.confirmedAt ? new Date(p.confirmedAt) : undefined,
           })));
         } catch (e) {
           console.error('Error parsing payments:', e);
@@ -751,7 +752,7 @@ export const ClientManagement: React.FC = () => {
                                 </TableCell>
                                 <TableCell>
                                   <Typography variant="body2">
-                                    {format(payment.date, 'MMM dd, yyyy')}
+                                    {format(payment.createdAt, 'MMM dd, yyyy')}
                                   </Typography>
                                 </TableCell>
                                 <TableCell>

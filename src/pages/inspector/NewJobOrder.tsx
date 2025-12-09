@@ -487,7 +487,6 @@ export const NewJobOrder: React.FC = () => {
           phone: '',
           address: '',
           businessType: 'Construction',
-          location: '',
         });
         setStickerPhoto(null);
         setStickerNumber('');

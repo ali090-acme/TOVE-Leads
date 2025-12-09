@@ -1,12 +1,5 @@
-// User Roles
-export type UserRole = 
-  | 'client' 
-  | 'inspector' 
-  | 'trainer' 
-  | 'supervisor' 
-  | 'accountant' 
-  | 'manager' 
-  | 'gm';
+// User Roles - string type to allow custom roles
+export type UserRole = string;
 
 // Permission Levels
 export type PermissionLevel = 'Basic' | 'Moderate' | 'Advanced';
