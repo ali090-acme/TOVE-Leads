@@ -81,8 +81,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  roles: UserRole[];
-  currentRole?: UserRole;
+  roles: (UserRole | string)[]; // Can be system roles (UserRole) or custom role names (string)
+  currentRole?: UserRole | string; // Can be system role or custom role name
   employeeId?: string;
   department?: string;
   permissions?: UserPermissions; // User-specific permissions
@@ -103,8 +103,11 @@ export interface Client {
   accountStatus: 'Active' | 'Inactive';
   paymentHistory: Payment[];
   serviceHistory: JobOrder[];
-  regionId?: string; // Region assignment
-  teamId?: string; // Team assignment (within region)
+  // Multi-region support: client can work with multiple regions
+  regions?: string[]; // Array of region IDs (e.g., ['lahore', 'isb', 'karachi'])
+  // Legacy fields for backward compatibility (single region)
+  regionId?: string; // Single region assignment (deprecated, use regions array)
+  teamId?: string; // Team assignment (within region) - used for job order context
 }
 
 // Sticker Sizes

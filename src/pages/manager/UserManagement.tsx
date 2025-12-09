@@ -33,6 +33,7 @@ import {
 import { DataTable, Column } from '@/components/common/DataTable';
 import { useAppContext } from '@/context/AppContext';
 import { User, UserRole, PermissionLevel, PermissionType } from '@/types';
+import { CustomRole } from './RoleManagement';
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -100,9 +101,12 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+const STORAGE_KEY_CUSTOM_ROLES = 'custom-roles';
+
 export const UserManagement: React.FC = () => {
   const { users: contextUsers, setCurrentUser, setUsers: setContextUsers } = useAppContext();
   const [users, setUsers] = useState<User[]>(contextUsers);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -131,7 +135,7 @@ export const UserManagement: React.FC = () => {
     password: '',
     employeeId: '',
     department: '',
-    role: 'inspector' as UserRole,
+    role: 'inspector' as UserRole | string, // Can be system role or custom role name
     regionId: '',
     teamId: '',
   });
@@ -148,6 +152,49 @@ export const UserManagement: React.FC = () => {
         console.error('Failed to parse regions from localStorage', e);
       }
     }
+  }, []);
+
+  // Load custom roles from localStorage
+  useEffect(() => {
+    const loadCustomRoles = () => {
+      const stored = localStorage.getItem(STORAGE_KEY_CUSTOM_ROLES);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setCustomRoles(parsed.map((r: any) => ({
+            ...r,
+            createdAt: new Date(r.createdAt),
+            updatedAt: new Date(r.updatedAt),
+          })));
+        } catch (e) {
+          console.error('Failed to parse custom roles from localStorage', e);
+        }
+      }
+    };
+    loadCustomRoles();
+    
+    // Listen for custom role updates
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY_CUSTOM_ROLES) {
+        loadCustomRoles();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events (same-tab updates)
+    const handleCustomEvent = () => {
+      loadCustomRoles();
+    };
+    window.addEventListener('customRolesUpdated', handleCustomEvent);
+    
+    // Auto-refresh every 2 seconds to catch updates
+    const interval = setInterval(loadCustomRoles, 2000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('customRolesUpdated', handleCustomEvent);
+      clearInterval(interval);
+    };
   }, []);
 
   // Load users from localStorage on mount only
@@ -379,6 +426,28 @@ export const UserManagement: React.FC = () => {
 
   // Count enabled permissions for display
   const getPermissionSummary = (user: User): string => {
+    const userRole = user.currentRole || user.roles[0] || 'inspector';
+    const customRole = customRoles.find((r) => r.name === userRole);
+    
+    // If user has custom role, count its permissions
+    if (customRole) {
+      const customRolePermissions = Object.values(customRole.permissions).filter((v) => v === true).length;
+      const userSpecificPermissions = user.permissions 
+        ? Object.values(user.permissions.permissions).filter((v) => v === true).length 
+        : 0;
+      
+      // If user has custom permissions that override role permissions, show those
+      if (user.permissions && Object.keys(user.permissions.permissions).length > 0) {
+        if (userSpecificPermissions === 0) return 'No permissions';
+        return `${userSpecificPermissions} permission${userSpecificPermissions > 1 ? 's' : ''} enabled`;
+      }
+      
+      // Otherwise show custom role permissions
+      if (customRolePermissions === 0) return 'No permissions';
+      return `${customRolePermissions} permission${customRolePermissions > 1 ? 's' : ''} from role`;
+    }
+    
+    // For system roles, check user-specific permissions
     if (!user.permissions) return 'No custom permissions';
     const enabledCount = Object.values(user.permissions.permissions).filter((v) => v === true).length;
     const totalCount = Object.keys(user.permissions.permissions).length;
@@ -540,12 +609,23 @@ export const UserManagement: React.FC = () => {
   const getPermissionValue = (permission: PermissionType): boolean => {
     if (!selectedUser) return false;
     
+    // First check user-specific permissions (highest priority)
     if (selectedUser.permissions?.permissions[permission] !== undefined) {
       return selectedUser.permissions.permissions[permission] === true;
     }
     
+    // Check if user has a custom role assigned
+    const userRole = selectedUser.currentRole || selectedUser.roles[0] || 'inspector';
+    const customRole = customRoles.find((r) => r.name === userRole);
+    
+    // If custom role exists, use its permissions
+    if (customRole && customRole.permissions[permission] !== undefined) {
+      return customRole.permissions[permission] === true;
+    }
+    
+    // Fallback to default permissions for system roles
     return getDefaultPermissions(
-      selectedUser.currentRole || selectedUser.roles[0] || 'inspector',
+      userRole,
       selectedUser.permissions?.level || 'Basic'
     ).permissions[permission] === true;
   };
@@ -821,15 +901,36 @@ export const UserManagement: React.FC = () => {
                 <InputLabel>Role</InputLabel>
                 <Select
                   value={createFormData.role}
-                  onChange={(e) => setCreateFormData({ ...createFormData, role: e.target.value as UserRole })}
+                  onChange={(e) => setCreateFormData({ ...createFormData, role: e.target.value })}
                   label="Role"
                 >
+                  {/* System Roles */}
                   <MenuItem value="inspector">Inspector</MenuItem>
                   <MenuItem value="trainer">Trainer</MenuItem>
                   <MenuItem value="supervisor">Supervisor</MenuItem>
                   <MenuItem value="accountant">Accountant</MenuItem>
                   <MenuItem value="manager">Manager</MenuItem>
                   <MenuItem value="gm">General Manager</MenuItem>
+                  <MenuItem value="client">Client</MenuItem>
+                  
+                  {/* Custom Roles */}
+                  {customRoles.length > 0 && [
+                    <MenuItem key="divider" disabled sx={{ borderTop: '1px solid #e0e0e0', mt: 0.5, mb: 0.5 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        Custom Roles
+                      </Typography>
+                    </MenuItem>,
+                    ...customRoles.map((role) => (
+                      <MenuItem key={role.id} value={role.name}>
+                        {role.name}
+                        {role.description && (
+                          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                            - {role.description}
+                          </Typography>
+                        )}
+                      </MenuItem>
+                    )),
+                  ]}
                 </Select>
               </FormControl>
             </Grid>

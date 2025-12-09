@@ -53,8 +53,8 @@ export interface ActivityLog {
 }
 
 const STORAGE_KEY = 'activity-logs';
-const MAX_LOGS = 10000; // Maximum logs to keep
-const RETENTION_DAYS = 365; // Keep logs for 1 year
+const MAX_LOGS = 10000; // Maximum logs to keep (10,000)
+const RETENTION_DAYS = 1089; // Keep logs for 3 year
 
 /**
  * Get all activity logs from storage

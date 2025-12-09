@@ -92,6 +92,7 @@ interface StickerRequest {
   requestedByName: string;
   requestedByType: 'Region' | 'Inspector';
   quantity: number;
+  size: 'Large' | 'Small'; // Sticker size requested
   lotNumber?: string;
   requestDate: Date;
   status: 'Pending' | 'Approved' | 'Rejected';
@@ -122,7 +123,7 @@ export const StickerManager: React.FC = () => {
   const [newLot, setNewLot] = useState({ lotNumber: '', size: '', quantity: 0 });
   const [issueData, setIssueData] = useState({ lotId: '', assignedTo: '', assignedToType: 'Inspector' as 'Region' | 'Inspector', quantity: 0 });
   const [transferData, setTransferData] = useState({ from: '', to: '', quantity: 0, lotNumber: '' });
-  const [requestData, setRequestData] = useState({ quantity: 0, lotNumber: '' });
+  const [requestData, setRequestData] = useState({ quantity: 0, size: 'Large' as 'Large' | 'Small', lotNumber: '' });
   
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
@@ -224,7 +225,12 @@ export const StickerManager: React.FC = () => {
 
     if (storedRequests) {
       const parsed = JSON.parse(storedRequests);
-      setRequests(parsed.map((r: any) => ({ ...r, requestDate: new Date(r.requestDate), approvedDate: r.approvedDate ? new Date(r.approvedDate) : undefined })));
+      setRequests(parsed.map((r: any) => ({ 
+        ...r, 
+        size: r.size || 'Large', // Default to Large for backward compatibility
+        requestDate: new Date(r.requestDate), 
+        approvedDate: r.approvedDate ? new Date(r.approvedDate) : undefined 
+      })));
     }
   };
 
@@ -427,6 +433,7 @@ export const StickerManager: React.FC = () => {
       requestedByName: currentUser?.name || 'Unknown',
       requestedByType: 'Inspector',
       quantity: requestData.quantity,
+      size: requestData.size,
       lotNumber: requestData.lotNumber || undefined,
       requestDate: new Date(),
       status: 'Pending',
@@ -449,22 +456,38 @@ export const StickerManager: React.FC = () => {
 
     setSnackbar({ open: true, message: 'Request submitted successfully', severity: 'success' });
     setRequestDialogOpen(false);
-    setRequestData({ quantity: 0, lotNumber: '' });
+    setRequestData({ quantity: 0, size: 'Large', lotNumber: '' });
   };
 
   const handleApproveRequest = (requestId: string) => {
     const request = requests.find((r) => r.id === requestId);
     if (!request) return;
 
-    // Find an available lot (either the requested lot or any available lot)
+    // Find an available lot matching the requested size
+    // Priority: 1) Requested lot if it matches size, 2) Any lot with matching size, 3) Any available lot
     let selectedLot: StickerLot | undefined;
+    const requestedSize = request.size || 'Large'; // Default to Large for backward compatibility
     
     if (request.lotNumber) {
-      // Try to find the requested lot
-      selectedLot = lots.find((l) => l.lotNumber === request.lotNumber && l.status === 'Active' && l.availableQuantity >= request.quantity);
+      // Try to find the requested lot with matching size
+      selectedLot = lots.find((l) => 
+        l.lotNumber === request.lotNumber && 
+        l.status === 'Active' && 
+        l.size === requestedSize &&
+        l.availableQuantity >= request.quantity
+      );
     }
     
-    // If requested lot not available or no lot specified, find any available lot
+    // If requested lot not available or doesn't match size, find any lot with matching size
+    if (!selectedLot) {
+      selectedLot = lots.find((l) => 
+        l.status === 'Active' && 
+        l.size === requestedSize &&
+        l.availableQuantity >= request.quantity
+      );
+    }
+    
+    // If still no lot found with matching size, find any available lot (fallback)
     if (!selectedLot) {
       selectedLot = lots.find((l) => l.status === 'Active' && l.availableQuantity >= request.quantity);
     }
@@ -472,7 +495,7 @@ export const StickerManager: React.FC = () => {
     if (!selectedLot || selectedLot.availableQuantity < request.quantity) {
       setSnackbar({ 
         open: true, 
-        message: 'Insufficient stock available to fulfill this request', 
+        message: `Insufficient ${requestedSize} stock available to fulfill this request`, 
         severity: 'error' 
       });
       setMenuAnchor(null);
@@ -508,7 +531,7 @@ export const StickerManager: React.FC = () => {
       id: `stock-${Date.now()}`,
       lotId: selectedLot.id,
       lotNumber: selectedLot.lotNumber,
-      size: selectedLot.size, // Add size from lot
+      size: requestedSize, // Use requested size instead of lot size
       assignedTo: assignedToId,
       assignedToName: assignedToName,
       assignedToEmail: assignedToEmail,
@@ -888,6 +911,7 @@ export const StickerManager: React.FC = () => {
                 <TableRow sx={{ bgcolor: 'grey.100' }}>
                   <TableCell sx={{ fontWeight: 600 }}>Requested By</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Size</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Lot Number</TableCell>
                   <TableCell sx={{ fontWeight: 600 }} align="right">Quantity</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Request Date</TableCell>
@@ -898,7 +922,7 @@ export const StickerManager: React.FC = () => {
               <TableBody>
                 {requests.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                       <Typography variant="body2" color="text.secondary">
                         No requests found.
                       </Typography>
@@ -910,6 +934,9 @@ export const StickerManager: React.FC = () => {
                       <TableCell>{request.requestedByName}</TableCell>
                       <TableCell>
                         <Chip label={request.requestedByType} size="small" />
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={request.size || 'Large'} size="small" color="primary" />
                       </TableCell>
                       <TableCell>{request.lotNumber || 'Any'}</TableCell>
                       <TableCell align="right">{request.quantity}</TableCell>
@@ -1138,6 +1165,19 @@ export const StickerManager: React.FC = () => {
         <DialogTitle>Request Stock</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Sticker Size</InputLabel>
+                <Select
+                  value={requestData.size}
+                  label="Sticker Size"
+                  onChange={(e) => setRequestData({ ...requestData, size: e.target.value as 'Large' | 'Small' })}
+                >
+                  <MenuItem value="Large">Large</MenuItem>
+                  <MenuItem value="Small">Small</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth>
                 <InputLabel>Lot Number (Optional)</InputLabel>

@@ -28,11 +28,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   const userName = currentUser?.name || '';
   
   // Debug logging
-  console.log('🏗️ MainLayout: currentUser:', currentUser?.name, currentUser?.id, 'userName:', userName);
+  console.log(' MainLayout: currentUser:', currentUser?.name, currentUser?.id, 'userName:', userName);
   
   // Log warning if currentUser is missing (for debugging)
   if (!currentUser) {
-    console.error('❌ MainLayout: No currentUser found in context! User should be logged in.');
+    console.error(' MainLayout: No currentUser found in context! User should be logged in.');
   }
 
   const toggleSidebar = () => {

@@ -25,6 +25,10 @@ import {
   CircularProgress,
   Tabs,
   Tab,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
 } from '@mui/material';
 import {
   ArrowBack as BackIcon,
@@ -39,6 +43,7 @@ import { useAppContext } from '@/context/AppContext';
 import { logUserAction } from '@/utils/activityLogger';
 import { getStickerUsageForStock, getAvailableStickerQuantity } from '@/utils/stickerTracking';
 import { Link } from 'react-router-dom';
+import { StickerSize } from '@/types';
 
 interface StickerStockItem {
   id: string;
@@ -60,6 +65,7 @@ interface StickerRequest {
   requestedByName: string;
   requestedByType: 'Region' | 'Inspector';
   quantity: number;
+  size: StickerSize; // Sticker size (Large or Small)
   lotNumber?: string;
   requestDate: Date;
   status: 'Pending' | 'Approved' | 'Rejected';
@@ -77,6 +83,7 @@ export const StickerStock: React.FC = () => {
   const [requests, setRequests] = useState<StickerRequest[]>([]);
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [requestQuantity, setRequestQuantity] = useState(0);
+  const [requestSize, setRequestSize] = useState<StickerSize>('Large');
   const [requestLotNumber, setRequestLotNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestFilter, setRequestFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
@@ -219,6 +226,7 @@ export const StickerStock: React.FC = () => {
         )
         .map((r: any) => ({
           ...r,
+          size: r.size || 'Large', // Default to Large for backward compatibility
           requestDate: new Date(r.requestDate),
           approvedDate: r.approvedDate ? new Date(r.approvedDate) : undefined,
         }));
@@ -256,6 +264,7 @@ export const StickerStock: React.FC = () => {
       requestedByName: currentUser?.name || 'Inspector',
       requestedByType: 'Inspector',
       quantity: requestQuantity,
+      size: requestSize,
       lotNumber: requestLotNumber || undefined,
       requestDate: new Date(),
       status: 'Pending',
@@ -289,6 +298,7 @@ export const StickerStock: React.FC = () => {
     setSnackbar({ open: true, message: 'Stock request submitted successfully', severity: 'success' });
     setRequestDialogOpen(false);
     setRequestQuantity(0);
+    setRequestSize('Large');
     setRequestLotNumber('');
     setIsSubmitting(false);
     loadData();
@@ -625,6 +635,7 @@ export const StickerStock: React.FC = () => {
               <TableHead>
                 <TableRow sx={{ bgcolor: 'grey.100' }}>
                   <TableCell sx={{ fontWeight: 600 }}>Request Date</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Size</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Quantity</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Lot Number</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
@@ -634,7 +645,7 @@ export const StickerStock: React.FC = () => {
               <TableBody>
                 {filteredRequests.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                       <Typography variant="body2" color="text.secondary">
                         No {requestFilter !== 'all' ? requestFilter : ''} requests found.
                       </Typography>
@@ -665,6 +676,9 @@ export const StickerStock: React.FC = () => {
                     return (
                       <TableRow key={request.id} hover>
                         <TableCell>{format(request.requestDate, 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>
+                          <Chip label={request.size || 'Large'} size="small" color="primary" />
+                        </TableCell>
                         <TableCell>{request.quantity}</TableCell>
                         <TableCell>{request.lotNumber || 'Any Available'}</TableCell>
                         <TableCell>
@@ -715,6 +729,17 @@ export const StickerStock: React.FC = () => {
         <DialogTitle>Request Sticker Stock</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <InputLabel>Sticker Size</InputLabel>
+              <Select
+                value={requestSize}
+                label="Sticker Size"
+                onChange={(e) => setRequestSize(e.target.value as StickerSize)}
+              >
+                <MenuItem value="Large">Large</MenuItem>
+                <MenuItem value="Small">Small</MenuItem>
+              </Select>
+            </FormControl>
             <TextField
               fullWidth
               type="number"

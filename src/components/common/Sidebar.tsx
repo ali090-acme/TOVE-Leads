@@ -32,6 +32,8 @@ import {
   Security as SecurityIcon,
   Label as LabelIcon,
   Business as BusinessIcon,
+  AdminPanelSettings as RoleIcon,
+  Groups as ClientsIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '@/types';
@@ -92,7 +94,9 @@ const navItems: NavItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/manager', roles: ['manager', 'gm'] },
   { text: 'Analytics', icon: <AnalyticsIcon />, path: '/manager/analytics', roles: ['manager', 'gm'] },
   { text: 'Certificates', icon: <CertificateIcon />, path: '/manager/certificates', roles: ['manager', 'gm'] },
+  { text: 'Client Management', icon: <ClientsIcon />, path: '/manager/clients', roles: ['manager', 'gm'] },
   { text: 'User Management', icon: <PeopleIcon />, path: '/manager/users', roles: ['manager', 'gm'] },
+  { text: 'Role Management', icon: <RoleIcon />, path: '/manager/roles', roles: ['manager', 'gm'] },
   { text: 'Region Management', icon: <BusinessIcon />, path: '/manager/regions', roles: ['manager', 'gm'] },
   { text: 'Delegation Management', icon: <SecurityIcon />, path: '/manager/delegation', roles: ['manager', 'gm'] },
   { text: 'Tag Management', icon: <LabelIcon />, path: '/manager/tags', roles: ['manager', 'gm'] },

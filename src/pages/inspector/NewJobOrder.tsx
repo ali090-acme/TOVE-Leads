@@ -46,6 +46,7 @@ import { CloudOff as CloudOffIcon, CloudDone as CloudDoneIcon, PhotoCamera as Ph
 import { allocateStickerToJob, canAllocateSticker, getAvailableStickerQuantity } from '@/utils/stickerTracking';
 import { getAvailableTags, allocateTagToJob } from '@/utils/tagTracking';
 import { StickerSize } from '@/types';
+import { checkClientExists, getFilteredClients } from '@/utils/clientValidation';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -68,6 +69,21 @@ export const NewJobOrder: React.FC = () => {
   
   // Check if user has permission to create job orders
   const hasPermission = canCreateJobOrder(currentUser);
+  
+  // Get all clients for dropdown (users can select any existing client)
+  // Region filtering happens at job order level, not client selection level
+  const availableClients = React.useMemo(() => {
+    const stored = localStorage.getItem('clients');
+    if (stored) {
+      try {
+        return JSON.parse(stored) as Client[];
+      } catch (error) {
+        console.error('Error parsing clients:', error);
+        return clients; // Fallback to context clients
+      }
+    }
+    return clients; // Fallback to context clients
+  }, [clients]);
   
   // Initialize offline sync
   React.useEffect(() => {
@@ -131,6 +147,20 @@ export const NewJobOrder: React.FC = () => {
   const [showTagSection, setShowTagSection] = useState(false);
   const [selectedTagId, setSelectedTagId] = useState<string>('');
   const [availableTags, setAvailableTags] = useState<any[]>([]);
+  const [regions, setRegions] = useState<any[]>([]);
+
+  // Load regions for display
+  React.useEffect(() => {
+    const stored = localStorage.getItem('regions');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setRegions(parsed);
+      } catch (error) {
+        console.error('Error parsing regions:', error);
+      }
+    }
+  }, []);
 
   // Form state for existing client
   const [formData, setFormData] = useState({
@@ -149,10 +179,10 @@ export const NewJobOrder: React.FC = () => {
     phone: '',
     address: '',
     businessType: 'Construction' as 'Construction' | 'Engineering' | 'Individual',
-    location: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [clientExistsError, setClientExistsError] = useState<{ show: boolean; clientId?: string }>({ show: false });
 
   // Monitor online/offline status
   React.useEffect(() => {
@@ -188,6 +218,7 @@ export const NewJobOrder: React.FC = () => {
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
     setErrors({});
+    setClientExistsError({ show: false });
   };
 
   const validateForm = (): boolean => {
@@ -211,6 +242,20 @@ export const NewJobOrder: React.FC = () => {
       if (!newClientData.phone.trim()) {
         newErrors.newClientPhone = 'Phone number is required';
       }
+      
+      // Check if client already exists by company name only (for confidentiality - no region info revealed)
+      // This validation prevents duplicate client creation
+      // Note: Company name must be unique - same email is allowed for different companies
+      if (newClientData.name.trim()) {
+        const existsCheck = checkClientExists(newClientData.name);
+        if (existsCheck.exists) {
+          setClientExistsError({ show: true, clientId: existsCheck.clientId });
+          newErrors.clientExists = 'A client with this company name already exists in the system';
+          // This error will prevent form submission
+        } else {
+          setClientExistsError({ show: false });
+        }
+      }
     }
 
     // Common validation
@@ -228,6 +273,11 @@ export const NewJobOrder: React.FC = () => {
       if (selectedDate < now) {
         newErrors.dateTime = 'Date and time cannot be in the past';
       }
+    }
+    
+    // Region validation - user must have region assigned
+    if (!currentUser?.regionId) {
+      newErrors.region = 'You must be assigned to a region before creating job orders. Please contact your administrator.';
     }
 
     // Sticker or Tag validation - at least one is required
@@ -262,12 +312,38 @@ export const NewJobOrder: React.FC = () => {
       return;
     }
 
+    // For new client tab, check for duplicates by company name BEFORE validation
+    if (activeTab === 1) {
+      if (newClientData.name.trim()) {
+        const existsCheck = checkClientExists(newClientData.name);
+        if (existsCheck.exists) {
+          setClientExistsError({ show: true, clientId: existsCheck.clientId });
+          setErrors({ ...errors, clientExists: 'A client with this company name already exists in the system' });
+          setSnackbar({
+            open: true,
+            message: 'A client with this company name already exists in the system. Please use the "Existing Client" tab to select this client.',
+            severity: 'error',
+          });
+          return; // Prevent submission
+        }
+      }
+    }
+
     if (!validateForm()) {
-      setSnackbar({
-        open: true,
-        message: 'Please fix the errors in the form',
-        severity: 'error',
-      });
+      // If client exists error is set, show specific message
+      if (errors.clientExists || clientExistsError.show) {
+        setSnackbar({
+          open: true,
+          message: 'This client already exists in the system. Please use the "Existing Client" tab to select this client.',
+          severity: 'error',
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Please fix the errors in the form',
+          severity: 'error',
+        });
+      }
       return;
     }
 
@@ -279,6 +355,20 @@ export const NewJobOrder: React.FC = () => {
 
       // If new client, create it first (mock - in real app, this would be API call)
       if (activeTab === 1) {
+        // Double-check client doesn't exist by company name (final validation)
+        const existsCheck = checkClientExists(newClientData.name);
+        
+        if (existsCheck.exists) {
+          setSnackbar({
+            open: true,
+            message: 'A client with this company name already exists in the system. Please use the "Existing Client" tab to select this client.',
+            severity: 'error',
+          });
+          setClientExistsError({ show: true, clientId: existsCheck.clientId });
+          setLoading(false);
+          return;
+        }
+        
         const newClient: Client = {
           id: `client-${Date.now()}`,
           name: newClientData.name,
@@ -286,10 +376,15 @@ export const NewJobOrder: React.FC = () => {
           phone: newClientData.phone,
           address: newClientData.address,
           businessType: newClientData.businessType,
-          location: newClientData.location,
+          location: formData.location || '', // Use job order location as client location
           accountStatus: 'Active',
           paymentHistory: [],
           serviceHistory: [],
+          // Add current user's region to client's regions array
+          regions: currentUser?.regionId ? [currentUser.regionId] : [],
+          // Legacy: also set regionId for backward compatibility
+          regionId: currentUser?.regionId,
+          teamId: currentUser?.teamId,
         };
         
         // Add to localStorage (mock - in real app, this would be API call)
@@ -316,6 +411,9 @@ export const NewJobOrder: React.FC = () => {
         assignedTo: currentUser?.id || 'user-2',
         assignedToName: currentUser?.name || 'Inspector',
         priority: formData.priority,
+        // Auto-assign region and team from current user (for confidentiality)
+        regionId: currentUser?.regionId,
+        teamId: currentUser?.teamId,
       };
 
       // If offline, add to offline queue
@@ -507,7 +605,6 @@ export const NewJobOrder: React.FC = () => {
         phone: '',
         address: '',
         businessType: 'Construction',
-        location: '',
       });
       setStickerPhoto(null);
       setStickerNumber('');
@@ -612,11 +709,17 @@ export const NewJobOrder: React.FC = () => {
                   error={!!errors.clientId}
                   helperText={errors.clientId}
                 >
-                  {clients.map((client) => (
-                    <MenuItem key={client.id} value={client.id}>
-                      {client.name} - {client.businessType} ({client.location})
+                  {availableClients.length === 0 ? (
+                    <MenuItem disabled>
+                      No clients available
                     </MenuItem>
-                  ))}
+                  ) : (
+                    availableClients.map((client) => (
+                      <MenuItem key={client.id} value={client.id}>
+                        {client.name} - {client.businessType} ({client.location})
+                      </MenuItem>
+                    ))
+                  )}
                 </TextField>
               </Grid>
             </Grid>
@@ -624,6 +727,35 @@ export const NewJobOrder: React.FC = () => {
 
           {/* New Client Tab */}
           <TabPanel value={activeTab} index={1}>
+            {clientExistsError.show && (
+              <Alert 
+                severity="error" 
+                sx={{ mb: 3, borderRadius: 2 }}
+                action={
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={() => {
+                      setActiveTab(0);
+                      setClientExistsError({ show: false });
+                      // Try to select the existing client if possible
+                      if (clientExistsError.clientId && availableClients.find(c => c.id === clientExistsError.clientId)) {
+                        setFormData({ ...formData, clientId: clientExistsError.clientId });
+                      }
+                    }}
+                  >
+                    Use Existing Client
+                  </Button>
+                }
+              >
+                <Typography variant="body2" fontWeight={600}>
+                  Client Already Exists
+                </Typography>
+                <Typography variant="body2">
+                  A client with this company name is already registered in the system. Please use the "Existing Client" tab to select this client.
+                </Typography>
+              </Alert>
+            )}
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <TextField
@@ -632,12 +764,34 @@ export const NewJobOrder: React.FC = () => {
                   label="Client Name"
                   value={newClientData.name}
                   onChange={(e) => {
-                    setNewClientData({ ...newClientData, name: e.target.value });
+                    const name = e.target.value;
+                    setNewClientData({ ...newClientData, name });
+                    // Clear errors when typing
                     if (errors.newClientName) {
                       setErrors({ ...errors, newClientName: '' });
                     }
+                    if (errors.clientExists) {
+                      setErrors({ ...errors, clientExists: '' });
+                    }
+                    setClientExistsError({ show: false });
+                    
+                    // Real-time duplicate check when company name is entered
+                    if (name.trim()) {
+                      const existsCheck = checkClientExists(name);
+                      if (existsCheck.exists) {
+                        setClientExistsError({ show: true, clientId: existsCheck.clientId });
+                        setErrors({ ...errors, clientExists: 'A client with this company name already exists in the system' });
+                      } else {
+                        setClientExistsError({ show: false });
+                        if (errors.clientExists) {
+                          const newErrors = { ...errors };
+                          delete newErrors.clientExists;
+                          setErrors(newErrors);
+                        }
+                      }
+                    }
                   }}
-                  error={!!errors.newClientName}
+                  error={!!errors.newClientName || !!errors.clientExists || clientExistsError.show}
                   helperText={errors.newClientName}
                 />
               </Grid>
@@ -663,13 +817,26 @@ export const NewJobOrder: React.FC = () => {
                   label="Email"
                   value={newClientData.email}
                   onChange={(e) => {
-                    setNewClientData({ ...newClientData, email: e.target.value });
+                    const email = e.target.value;
+                    setNewClientData({ ...newClientData, email });
+                    // Clear errors when typing
                     if (errors.newClientEmail) {
                       setErrors({ ...errors, newClientEmail: '' });
                     }
+                    if (errors.clientExists) {
+                      setErrors({ ...errors, clientExists: '' });
+                    }
+                    setClientExistsError({ show: false });
+                    
+                    // Note: Email can be duplicate, only company name is checked for uniqueness
                   }}
-                  error={!!errors.newClientEmail}
-                  helperText={errors.newClientEmail}
+                  // Note: Email validation only, company name is checked separately
+                  error={!!errors.newClientEmail || !!errors.clientExists || clientExistsError.show}
+                  helperText={
+                    errors.newClientEmail || 
+                    (errors.clientExists ? 'Client already exists in the system' : '') ||
+                    (clientExistsError.show ? 'This client already exists. Use "Existing Client" tab.' : '')
+                  }
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -679,12 +846,20 @@ export const NewJobOrder: React.FC = () => {
                   label="Phone Number"
                   value={newClientData.phone}
                   onChange={(e) => {
-                    setNewClientData({ ...newClientData, phone: e.target.value });
+                    const phone = e.target.value;
+                    setNewClientData({ ...newClientData, phone });
+                    // Clear errors when typing
                     if (errors.newClientPhone) {
                       setErrors({ ...errors, newClientPhone: '' });
                     }
+                    if (errors.clientExists) {
+                      setErrors({ ...errors, clientExists: '' });
+                    }
+                    setClientExistsError({ show: false });
+                    
+                    // Note: Phone can be duplicate, only email is checked for uniqueness
                   }}
-                  error={!!errors.newClientPhone}
+                  error={!!errors.newClientPhone || !!errors.clientExists || clientExistsError.show}
                   helperText={errors.newClientPhone}
                 />
               </Grid>
@@ -696,15 +871,6 @@ export const NewJobOrder: React.FC = () => {
                   onChange={(e) => setNewClientData({ ...newClientData, address: e.target.value })}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Location"
-                  value={newClientData.location}
-                  onChange={(e) => setNewClientData({ ...newClientData, location: e.target.value })}
-                  placeholder="City, Country"
-                />
-              </Grid>
             </Grid>
           </TabPanel>
 
@@ -714,6 +880,67 @@ export const NewJobOrder: React.FC = () => {
           <Typography variant="h6" gutterBottom fontWeight={600}>
             Job Order Details
           </Typography>
+
+          {/* Region/Team Assignment Info (Transparency) */}
+          {currentUser?.regionId && (
+            <Alert 
+              severity="info" 
+              sx={{ mb: 3, borderRadius: 2 }}
+              icon={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" fontWeight={600}>
+                  Region/Team Assignment (Auto-Selected)
+                </Typography>
+              </Box>}
+            >
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="body2" fontWeight={600}>
+                    Region:
+                  </Typography>
+                  <Chip 
+                    label={
+                      regions.find(r => r.id === currentUser.regionId)?.name || 
+                      currentUser.regionId || 
+                      'Not Assigned'
+                    }
+                    size="small"
+                    color="primary"
+                    sx={{ fontWeight: 600 }}
+                  />
+                  {currentUser.teamId && (
+                    <>
+                      <Typography variant="body2" fontWeight={600} sx={{ ml: 2 }}>
+                        Team:
+                      </Typography>
+                      <Chip 
+                        label={
+                          regions
+                            .find(r => r.id === currentUser.regionId)
+                            ?.teams?.find((t: any) => t.id === currentUser.teamId)?.name || 
+                          currentUser.teamId || 
+                          'Not Assigned'
+                        }
+                        size="small"
+                        color="secondary"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </>
+                  )}
+                </Box>
+              </Box>
+            </Alert>
+          )}
+
+          {!currentUser?.regionId && (
+            <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+              <Typography variant="body2" fontWeight={600}>
+                No Region Assigned
+              </Typography>
+              <Typography variant="body2">
+                You don't have a region assigned. Please contact your administrator to assign you to a region before creating job orders.
+              </Typography>
+            </Alert>
+          )}
 
           <Grid container spacing={3} sx={{ mt: 1 }}>
             <Grid item xs={12} md={6}>
@@ -837,7 +1064,7 @@ export const NewJobOrder: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                 <Box>
                   <Typography variant="h6" fontWeight={600}>
-                    Sticker Allocation (Through Job Order)
+                    Sticker Allocation
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Select from your assigned stickers to link with this job order
@@ -985,7 +1212,7 @@ export const NewJobOrder: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                 <Box>
                   <Typography variant="h6" fontWeight={600}>
-                    Tag Allocation (Physical Tag - Not Printable)
+                    Tag Allocation
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Select a physical tag with unique number for traceability. Tags are ready-to-use items.
@@ -1074,7 +1301,7 @@ export const NewJobOrder: React.FC = () => {
               size="large"
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
               onClick={handleSubmit}
-              disabled={loading || !hasPermission}
+              disabled={loading || !hasPermission || !currentUser?.regionId || (activeTab === 1 && (clientExistsError.show || !!errors.clientExists))}
               sx={{
                 px: 4,
                 background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',

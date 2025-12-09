@@ -236,7 +236,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         try {
           const parsed = JSON.parse(stored);
           setUsers(parsed);
-          console.log('🔄 AppContext: Users updated from localStorage');
+          console.log(' AppContext: Users updated from localStorage');
         } catch (e) {
           console.error('Failed to parse users from localStorage', e);
         }
@@ -252,36 +252,88 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     };
   }, []);
 
-  // Load currentUser from localStorage on init
+  // Load currentUser from localStorage on init, then sync with users array
   const [currentUser, setCurrentUserState] = useState<User | null>(() => {
     const stored = localStorage.getItem('currentUser');
-    console.log('🔍 AppContext: Loading currentUser from localStorage:', stored);
+    console.log(' AppContext: Loading currentUser from localStorage:', stored);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        console.log('✅ AppContext: Loaded currentUser:', parsed?.name, parsed?.id);
+        console.log(' AppContext: Loaded currentUser:', parsed?.name, parsed?.id, 'Region:', parsed?.regionId, 'Team:', parsed?.teamId);
+        
+        // Try to sync with users array if available (for initial load)
+        const storedUsers = localStorage.getItem('users');
+        if (storedUsers) {
+          try {
+            const usersArray = JSON.parse(storedUsers) as User[];
+            const updatedUser = usersArray.find((u) => u.id === parsed.id);
+            if (updatedUser) {
+              // Merge with latest data from users array (especially region/team)
+              const syncedUser = {
+                ...parsed,
+                ...updatedUser, // Override with latest data
+              };
+              console.log(' AppContext: Synced currentUser with users array on init. Region:', syncedUser.regionId, 'Team:', syncedUser.teamId);
+              // Save synced version back to localStorage
+              localStorage.setItem('currentUser', JSON.stringify(syncedUser));
+              return syncedUser;
+            }
+          } catch (e) {
+            console.error(' AppContext: Error syncing currentUser with users array:', e);
+          }
+        }
+        
         return parsed;
       } catch (e) {
-        console.error('❌ AppContext: Error parsing currentUser from localStorage:', e);
+        console.error(' AppContext: Error parsing currentUser from localStorage:', e);
         return null;
       }
     }
-    console.log('⚠️ AppContext: No currentUser found in localStorage');
+    console.log(' AppContext: No currentUser found in localStorage');
     return null;
   });
   
   // Wrapper to persist currentUser to localStorage
   const setCurrentUser = (user: User | null) => {
-    console.log('📝 AppContext: Setting currentUser:', user?.name, user?.id, user?.currentRole);
+    console.log(' AppContext: Setting currentUser:', user?.name, user?.id, user?.currentRole);
     setCurrentUserState(user);
     if (user) {
       localStorage.setItem('currentUser', JSON.stringify(user));
-      console.log('💾 AppContext: Saved currentUser to localStorage');
+      console.log(' AppContext: Saved currentUser to localStorage');
     } else {
       localStorage.removeItem('currentUser');
-      console.log('🗑️ AppContext: Removed currentUser from localStorage');
+      console.log(' AppContext: Removed currentUser from localStorage');
     }
   };
+
+  // Sync currentUser with users array when users are updated (e.g., region/team assigned)
+  useEffect(() => {
+    if (currentUser && users.length > 0) {
+      const updatedUser = users.find((u) => u.id === currentUser.id);
+      if (updatedUser) {
+        // Always sync to ensure currentUser has latest data (especially region/team)
+        // Check if any important fields have changed
+        const needsSync = 
+          updatedUser.regionId !== currentUser.regionId ||
+          updatedUser.teamId !== currentUser.teamId ||
+          updatedUser.name !== currentUser.name ||
+          updatedUser.email !== currentUser.email ||
+          JSON.stringify(updatedUser.roles) !== JSON.stringify(currentUser.roles);
+        
+        if (needsSync) {
+          console.log(' AppContext: Syncing currentUser with updated user data. Old Region:', currentUser.regionId, 'New Region:', updatedUser.regionId);
+          const syncedUser: User = {
+            ...currentUser,
+            ...updatedUser, // Override with latest data from users array
+          };
+          setCurrentUser(syncedUser);
+        }
+      } else {
+        // User not found in users array - might have been deleted
+        console.warn(' AppContext: currentUser not found in users array. User may have been deleted.');
+      }
+    }
+  }, [users, currentUser?.id]); // Sync whenever users array changes or currentUser ID changes
 
   // Persist data to localStorage whenever it changes
   useEffect(() => {

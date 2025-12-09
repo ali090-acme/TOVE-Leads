@@ -65,9 +65,11 @@ import { InvoiceManagement } from './pages/accountant/InvoiceManagement';
 
 // Manager Pages
 import { ManagerDashboard } from './pages/manager/ManagerDashboard';
+import { ClientManagement } from './pages/manager/ClientManagement';
 import { Analytics } from './pages/manager/Analytics';
 import { CertificateManagement } from './pages/manager/CertificateManagement';
 import { UserManagement } from './pages/manager/UserManagement';
+import { RoleManagement } from './pages/manager/RoleManagement';
 import { DelegationManagement } from './pages/manager/DelegationManagement';
 import { TagManagement } from './pages/manager/TagManagement';
 import { ActivityLogs } from './pages/admin/ActivityLogs';
@@ -93,7 +95,7 @@ function AppContent() {
   // Get current user from context
   const { currentUser } = useAppContext();
   
-  console.log('📱 AppContent: currentUser from context:', currentUser?.name, currentUser?.id, currentUser?.currentRole);
+  console.log(' AppContent: currentUser from context:', currentUser?.name, currentUser?.id, currentUser?.currentRole);
   
   // Mock authentication state - sync with currentUser
   const [currentRole, setCurrentRole] = useState<UserRole>(currentUser?.currentRole || 'client');
@@ -101,13 +103,13 @@ function AppContent() {
   
   // Update role and roles when currentUser changes
   useEffect(() => {
-    console.log('🔄 AppContent: currentUser changed:', currentUser?.name);
+    console.log(' AppContent: currentUser changed:', currentUser?.name);
     if (currentUser) {
       setCurrentRole(currentUser.currentRole || 'client');
       setUserRoles(currentUser.roles || ['client']);
-      console.log('✅ AppContent: Updated role to:', currentUser.currentRole);
+      console.log(' AppContent: Updated role to:', currentUser.currentRole);
     } else {
-      console.warn('⚠️ AppContent: currentUser is null');
+      console.warn(' AppContent: currentUser is null');
     }
   }, [currentUser]);
 
@@ -743,6 +745,18 @@ function AppContent() {
             }
           />
           <Route
+            path="/manager/roles"
+            element={
+              <MainLayout
+                userRole="manager"
+                userRoles={['manager', 'gm']}
+                onRoleChange={setCurrentRole}
+              >
+                <RoleManagement />
+              </MainLayout>
+            }
+          />
+          <Route
             path="/manager/activity-logs"
             element={
               <MainLayout
@@ -763,6 +777,18 @@ function AppContent() {
                 onRoleChange={setCurrentRole}
               >
                 <StickerManager />
+              </MainLayout>
+            }
+          />
+          <Route
+            path="/manager/clients"
+            element={
+              <MainLayout
+                userRole="manager"
+                userRoles={['manager', 'gm']}
+                onRoleChange={setCurrentRole}
+              >
+                <ClientManagement />
               </MainLayout>
             }
           />
