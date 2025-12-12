@@ -165,7 +165,7 @@ export const exportFIRAsPDF = async (jobOrder: JobOrder): Promise<void> => {
     }
 
     // Footer
-    const pageCount = doc.getNumberOfPages();
+    const pageCount = (doc as any).getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
@@ -356,7 +356,7 @@ export const exportFTRAsPDF = async (jobOrder: JobOrder): Promise<void> => {
     }
 
     // Footer
-    const pageCount = doc.getNumberOfPages();
+    const pageCount = (doc as any).getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);

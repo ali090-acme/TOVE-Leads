@@ -17,6 +17,9 @@ export type ActionType =
   | 'VERIFY'
   | 'PAYMENT'
   | 'RENEWAL'
+  | 'REQUEST_REVISION'
+  | 'APPROVE_JOB_ORDER_AND_ASSIGN'
+  | 'APPROVE_REPORT'
   | 'SYSTEM_ERROR'
   | 'SYSTEM_WARNING'
   | 'SYSTEM_INFO';

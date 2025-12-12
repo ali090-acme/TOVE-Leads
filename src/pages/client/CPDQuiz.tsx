@@ -486,9 +486,6 @@ export const CPDQuiz: React.FC = () => {
                 background: '#bdbdbd',
                 color: '#757575',
               },
-              '&:hover': {
-                background: 'linear-gradient(135deg, #218838 0%, #1e7e34 100%)',
-              },
             }}
           >
             Submit Quiz

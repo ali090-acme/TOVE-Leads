@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import {
   Client,
   JobOrder,
+  JobOrderStatus,
   Certificate,
   Payment,
   TrainingSession,
@@ -712,7 +713,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
                 ...jo,
                 assignedTo: userId,
                 assignedToName: assignedUser.name,
-                status: 'In Progress', // Change status to In Progress when assigned
+                status: 'In Progress' as JobOrderStatus, // Change status to In Progress when assigned
                 updatedAt: new Date(),
               }
             : jo
@@ -775,7 +776,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           jo.id === jobOrderId
             ? {
                 ...jo,
-                status: 'Completed',
+                status: 'Completed' as JobOrderStatus,
                 reportData: reportData, // Save form data and evidence metadata
                 signatures: signatures || [],
                 evidence: reportData?.evidence || [], // Save evidence metadata
@@ -847,7 +848,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           jo.id === jobOrderId
             ? {
                 ...jo,
-                status: 'Pending',
+                status: 'Pending' as JobOrderStatus,
                 updatedAt: new Date(),
               }
             : jo
@@ -877,7 +878,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           jo.id === jobOrderId
             ? {
                 ...jo,
-                status: 'In Progress', // Changed from Completed to In Progress for revision
+                status: 'In Progress' as JobOrderStatus, // Changed from Completed to In Progress for revision
                 revisionComments: comments, // Store revision comments
                 revisionRequestedAt: new Date(),
                 updatedAt: new Date(),

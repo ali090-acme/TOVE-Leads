@@ -553,13 +553,13 @@ export const NewJobOrder: React.FC = () => {
           setSnackbar({
             open: true,
             message: `Draft loaded. ${draftData.attachmentNames?.length || 0} attachment(s) were saved. Please re-upload attachments if needed.`,
-            severity: 'info',
+            severity: 'success',
           });
         } else {
           setSnackbar({
             open: true,
             message: 'Draft loaded successfully!',
-            severity: 'info',
+            severity: 'success',
           });
         }
       } catch (error) {
