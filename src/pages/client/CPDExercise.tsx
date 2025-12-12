@@ -14,6 +14,7 @@ import {
 import {
   ArrowBack as BackIcon,
   CheckCircle as CheckIcon,
+  CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   Link as LinkIcon,
   LinkOutlined as LinkOutlinedIcon,
@@ -101,6 +102,15 @@ export const CPDExercise: React.FC = () => {
 
   const totalMatches = exercise.items.length;
   const matchedCount = Object.keys(matches).length;
+
+  // Format hours display
+  const formatHours = (hours: number): string => {
+    if (hours < 1) {
+      const minutes = Math.round(hours * 60);
+      return `${minutes} min`;
+    }
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  };
 
   const handleItemClick = (itemId: string) => {
     if (isCompleted) return;
@@ -213,15 +223,29 @@ export const CPDExercise: React.FC = () => {
                 }}
               />
             </Box>
-            <Chip
-              icon={<ScheduleIcon />}
-              label={`${exercise.hours} hrs`}
-              sx={{
-                bgcolor: 'rgba(255, 255, 255, 0.2)',
-                color: 'white',
-                fontWeight: 600,
-              }}
-            />
+            {!isCompleted ? (
+              <Chip
+                icon={<ScheduleIcon />}
+                label={`Est. ${formatHours(exercise.hours)}`}
+                sx={{
+                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                }}
+              />
+            ) : (
+              <Chip
+                icon={<CheckIcon />}
+                label={`Earned: ${formatHours(exercise.hours)}`}
+                sx={{
+                  bgcolor: 'rgba(255, 255, 255, 0.3)',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
+                }}
+              />
+            )}
           </Box>
         </Box>
       </Card>
@@ -240,10 +264,10 @@ export const CPDExercise: React.FC = () => {
       </Card>
 
       {/* Instructions Card */}
-      <Card elevation={1} sx={{ borderRadius: 2, mb: 3, bgcolor: 'info.light', border: '1px solid', borderColor: 'info.main' }}>
+      <Card elevation={2} sx={{ borderRadius: 2, mb: 3, bgcolor: 'white', border: '2px solid', borderColor: '#1e3c72' }}>
         <CardContent sx={{ p: 2.5, display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-          <InfoIcon sx={{ color: 'info.main', mt: 0.5, fontSize: 20 }} />
-          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+          <InfoIcon sx={{ color: '#1e3c72', mt: 0.5, fontSize: 24, flexShrink: 0 }} />
+          <Typography variant="body1" sx={{ lineHeight: 1.7, fontWeight: 500, color: '#2c3e50' }}>
             Click on each item to match it with the correct category. Match all items to complete the exercise.
           </Typography>
         </CardContent>
@@ -251,37 +275,89 @@ export const CPDExercise: React.FC = () => {
 
       {/* Selection Hint */}
       {selectedItem && !isCompleted && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <Typography variant="body2">
-            Item selected: <strong>{exercise.items.find((i: any) => i.id === selectedItem)?.label}</strong>. Now click on a category to match.
+        <Alert 
+          severity="info" 
+          sx={{ 
+            mb: 3,
+            bgcolor: '#e3f2fd',
+            border: '2px solid #1e3c72',
+            borderRadius: 2,
+            '& .MuiAlert-icon': {
+              color: '#1e3c72',
+            },
+          }}
+        >
+          <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e3c72', mb: 0.5 }}>
+            Item Selected: {exercise.items.find((i: any) => i.id === selectedItem)?.label}
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#2c3e50' }}>
+            Click on a category below to match it with the selected item.
           </Typography>
         </Alert>
       )}
 
       {/* Results */}
       {isCompleted && score !== null && (
-        <Alert
-          severity={score >= 70 ? 'success' : 'warning'}
-          sx={{ mb: 3 }}
-          action={
-            <Button
-              color="inherit"
-              size="small"
-              onClick={() => navigate(`/client/cpd/${categoryId}`)}
-            >
-              Back to Category
-            </Button>
-          }
+        <Card
+          elevation={3}
+          sx={{
+            mb: 3,
+            borderRadius: 3,
+            overflow: 'hidden',
+            background: score >= 70
+              ? 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)'
+              : 'linear-gradient(135deg, #e67e22 0%, #d35400 100%)',
+            color: 'white',
+          }}
         >
-          <Typography variant="h6" gutterBottom>
-            Exercise Completed!
-          </Typography>
-          <Typography variant="body2">
-            Your score: <strong>{score}%</strong> ({score >= 70 ? 'Passed' : 'Failed'})
-            <br />
-            You've earned {exercise.hours} CPD hours.
-          </Typography>
-        </Alert>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
+              <Box sx={{ flexGrow: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                  <CheckCircleIcon sx={{ fontSize: 32, color: 'white' }} />
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: 'white' }}>
+                    Exercise Completed!
+                  </Typography>
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
+                  Your Score: <strong style={{ fontSize: '1.2em' }}>{score}%</strong>
+                </Typography>
+                <Chip
+                  label={score >= 70 ? 'Passed' : 'Failed'}
+                  sx={{
+                    bgcolor: score >= 70 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.2)',
+                    color: 'white',
+                    fontWeight: 700,
+                    mb: 1.5,
+                    fontSize: '0.875rem',
+                    height: 28,
+                  }}
+                />
+                <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.95)', lineHeight: 1.6 }}>
+                  You've earned <strong>{formatHours(exercise.hours)}</strong> of CPD credit.
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                size="medium"
+                onClick={() => navigate(`/client/cpd/${categoryId}`)}
+                sx={{
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  fontWeight: 600,
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.3)',
+                    border: '1px solid rgba(255,255,255,0.5)',
+                  },
+                  px: 3,
+                }}
+              >
+                Back to Category
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
       )}
 
       <Grid container spacing={3}>
@@ -313,34 +389,41 @@ export const CPDExercise: React.FC = () => {
                     onClick={() => handleItemClick(item.id)}
                     sx={{
                       mb: 2,
-                      p: 2,
+                      p: 2.5,
                       border: '2px solid',
                       borderColor:
                         isSelected
-                          ? 'primary.main'
+                          ? '#1e3c72'
                           : matches[item.id]
                           ? isCorrect
-                            ? 'success.main'
+                            ? '#1e3c72'
                             : isWrong
-                            ? 'error.main'
-                            : 'primary.light'
-                          : 'divider',
-                      borderRadius: 2,
+                            ? '#c62828'
+                            : '#3498db'
+                          : '#e0e0e0',
+                      borderRadius: 3,
                       bgcolor:
                         isSelected
-                          ? 'primary.light'
+                          ? '#e3f2fd'
                           : matches[item.id]
                           ? isCorrect
-                            ? 'success.light'
+                            ? '#e3f2fd'
                             : isWrong
-                            ? 'error.light'
-                            : 'grey.50'
-                          : 'transparent',
+                            ? '#ffebee'
+                            : '#f0f7ff'
+                          : 'white',
                       cursor: isCompleted ? 'default' : 'pointer',
-                      transition: 'all 0.3s ease',
+                      transition: 'all 0.2s ease',
+                      boxShadow: isSelected ? '0 2px 8px rgba(30, 60, 114, 0.15)' : 'none',
                       '&:hover': {
-                        borderColor: isCompleted ? undefined : 'primary.main',
-                        bgcolor: isCompleted ? undefined : isSelected ? 'primary.light' : 'grey.50',
+                        borderColor: isCompleted ? undefined : '#1e3c72',
+                        bgcolor: isCompleted 
+                          ? undefined 
+                          : isSelected 
+                          ? '#d6e9f7' 
+                          : '#f5f5f5',
+                        transform: isCompleted ? undefined : 'translateY(-2px)',
+                        boxShadow: isCompleted ? undefined : '0 4px 12px rgba(0,0,0,0.1)',
                       },
                     }}
                   >
@@ -356,12 +439,12 @@ export const CPDExercise: React.FC = () => {
                           fontWeight={600}
                           sx={{
                             color: isCorrect
-                              ? 'success.dark'
+                              ? '#1e3c72'
                               : isWrong
-                              ? 'error.dark'
+                              ? '#c62828'
                               : matches[item.id]
-                              ? 'primary.main'
-                              : 'text.primary',
+                              ? '#1e3c72'
+                              : '#2c3e50',
                           }}
                         >
                           {item.label}
@@ -373,18 +456,40 @@ export const CPDExercise: React.FC = () => {
                           size="small"
                           sx={{
                             bgcolor: isCorrect
-                              ? 'success.main'
+                              ? '#1e3c72'
                               : isWrong
-                              ? 'error.main'
-                              : 'primary.main',
+                              ? '#c62828'
+                              : '#1e3c72',
                             color: 'white',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             mr: 1,
+                            fontSize: '0.75rem',
+                            height: 26,
                           }}
                         />
                       )}
-                      {isCorrect && <CheckIcon sx={{ color: 'success.main' }} />}
-                      {isWrong && <CancelIcon sx={{ color: 'error.main' }} />}
+                      {isCorrect && (
+                        <CheckIcon 
+                          sx={{ 
+                            color: '#1e3c72', 
+                            fontSize: 28,
+                            bgcolor: 'rgba(30, 60, 114, 0.1)',
+                            borderRadius: '50%',
+                            p: 0.5,
+                          }} 
+                        />
+                      )}
+                      {isWrong && (
+                        <CancelIcon 
+                          sx={{ 
+                            color: '#c62828', 
+                            fontSize: 28,
+                            bgcolor: 'rgba(198, 40, 40, 0.1)',
+                            borderRadius: '50%',
+                            p: 0.5,
+                          }} 
+                        />
+                      )}
                     </Box>
                   </Card>
                 );
@@ -407,39 +512,64 @@ export const CPDExercise: React.FC = () => {
                 Categories
               </Typography>
             </Box>
-            <CardContent sx={{ p: 2 }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+            <CardContent sx={{ p: 2.5 }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                 {exercise.categories.map((category: any) => {
                   const isUsed = isCategoryUsed(category.id);
                   const canClick = selectedItem !== null && !isCompleted;
+                  const isHoverable = canClick || isUsed;
 
                   return (
                     <Card
                       key={category.id}
                       elevation={0}
-                      onClick={() => handleCategoryClick(category.id)}
+                      onClick={() => {
+                        if (canClick || isUsed) {
+                          handleCategoryClick(category.id);
+                        }
+                      }}
                       sx={{
-                        p: 2,
+                        p: 2.5,
                         border: '2px solid',
-                        borderColor: isUsed ? 'primary.main' : 'divider',
-                        borderRadius: 2,
-                        bgcolor: isUsed ? 'primary.main' : 'transparent',
-                        minWidth: { xs: '100%', sm: 150 },
-                        flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)' },
-                        cursor: canClick ? 'pointer' : isUsed ? 'pointer' : 'default',
-                        transition: 'all 0.3s ease',
+                        borderColor: isUsed 
+                          ? '#1e3c72' 
+                          : canClick 
+                          ? '#3498db' 
+                          : '#e0e0e0',
+                        borderRadius: 3,
+                        bgcolor: isUsed 
+                          ? '#1e3c72' 
+                          : canClick 
+                          ? '#f0f7ff' 
+                          : 'white',
+                        minWidth: { xs: '100%', sm: 160 },
+                        flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 16px)' },
+                        cursor: isHoverable ? 'pointer' : 'not-allowed',
+                        transition: 'all 0.2s ease',
+                        transform: isHoverable ? 'scale(1)' : 'scale(0.98)',
+                        opacity: isHoverable ? 1 : 0.6,
                         '&:hover': {
-                          borderColor: canClick ? 'primary.main' : undefined,
-                          bgcolor: canClick ? 'primary.light' : undefined,
+                          borderColor: isHoverable ? '#1e3c72' : undefined,
+                          bgcolor: isHoverable 
+                            ? (isUsed ? '#2a5298' : '#e3f2fd') 
+                            : undefined,
+                          transform: isHoverable ? 'scale(1.02)' : undefined,
+                          boxShadow: isHoverable 
+                            ? '0 4px 12px rgba(30, 60, 114, 0.2)' 
+                            : undefined,
+                        },
+                        '&:active': {
+                          transform: isHoverable ? 'scale(0.98)' : undefined,
                         },
                       }}
                     >
                       <Typography
                         variant="body1"
-                        fontWeight={isUsed ? 600 : 400}
+                        fontWeight={isUsed ? 700 : canClick ? 600 : 500}
                         sx={{
-                          color: isUsed ? 'white' : 'text.primary',
+                          color: isUsed ? 'white' : canClick ? '#1e3c72' : '#757575',
                           textAlign: 'center',
+                          fontSize: '0.9375rem',
                         }}
                       >
                         {category.label}
@@ -461,14 +591,28 @@ export const CPDExercise: React.FC = () => {
             size="large"
             onClick={handleSubmit}
             disabled={matchedCount < totalMatches}
-            startIcon={<CheckIcon />}
+            startIcon={<CheckIcon sx={{ color: 'white !important' }} />}
             sx={{
-              background: 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
+              background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+              color: 'white !important',
+              fontWeight: 700,
+              fontSize: '1rem',
+              textTransform: 'none',
               '&:hover': {
-                background: 'linear-gradient(135deg, #218838 0%, #1e7e34 100%)',
+                background: 'linear-gradient(135deg, #2a5298 0%, #3d6bb3 100%)',
+                boxShadow: '0 6px 20px rgba(30, 60, 114, 0.4)',
               },
-              px: 4,
-              py: 1.5,
+              '&:disabled': {
+                background: '#bdbdbd',
+                color: '#757575 !important',
+                '& .MuiSvgIcon-root': {
+                  color: '#757575 !important',
+                },
+              },
+              px: 5,
+              py: 1.75,
+              boxShadow: '0 4px 16px rgba(30, 60, 114, 0.35)',
+              minWidth: 200,
             }}
           >
             Submit Exercise

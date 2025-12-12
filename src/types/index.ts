@@ -140,6 +140,13 @@ export interface JobOrder {
   priority?: 'Low' | 'Medium' | 'High';
   amount?: number;
   paymentStatus?: 'Pending' | 'Confirmed' | 'Failed';
+  // Priority 1: Save as Draft, Attachments, Share with Client
+  isDraft?: boolean; // Indicates if job order is saved as draft
+  attachments?: string[]; // Array of base64 encoded files or file URLs
+  shareWithClient?: boolean; // Checkbox to share data with client
+  // Revision tracking
+  revisionComments?: string; // Comments from supervisor when requesting revision
+  revisionRequestedAt?: Date; // Timestamp when revision was requested
   // Sticker allocation fields (for accountability and tracking)
   stickerAllocation?: {
     stickerId?: string; // ID of the sticker stock item used
@@ -165,6 +172,68 @@ export interface JobOrder {
   };
   createdAt: Date;
   updatedAt: Date;
+  // Report Data - Saved form data and evidence metadata when job is submitted
+  reportData?: {
+    equipmentSerial?: string;
+    location?: string;
+    condition?: string;
+    safetyCheck?: string;
+    loadTest?: string;
+    visualInspection?: string;
+    observations?: string;
+    evidence?: Array<{
+      id: string;
+      type: EvidenceType;
+      category: EvidenceCategory;
+      description?: string;
+      linkedField?: string;
+      fileName: string;
+      fileSize: number;
+      mimeType: string;
+      uploadedAt: string; // ISO string
+    }>;
+    [key: string]: any; // Allow additional form fields
+  };
+  // Signature Collection - People of sight signatures
+  signatures?: Array<{
+    id: string;
+    signerName: string;
+    signerRole?: string;
+    signatureData: string; // Base64 encoded signature image
+    signedAt: Date;
+  }>;
+  // Structured Evidence Collection
+  evidence?: Evidence[];
+}
+
+// Evidence Types
+export type EvidenceType = 'Photo' | 'Document' | 'Video' | 'Certificate';
+
+// Evidence Categories
+export type EvidenceCategory = 
+  | 'Equipment Photo'
+  | 'Defect Photo'
+  | 'Before Photo'
+  | 'After Photo'
+  | 'Certificate'
+  | 'Test Result'
+  | 'Measurement'
+  | 'General Documentation'
+  | 'Other';
+
+// Evidence Interface - Structured evidence collection with metadata
+export interface Evidence {
+  id: string;
+  file: File; // File object
+  type: EvidenceType; // Photo, Document, Video, Certificate
+  category: EvidenceCategory; // Specific category
+  description?: string; // Optional description
+  linkedField?: string; // Optional: form field this evidence is linked to (e.g., 'equipmentSerial', 'defectLocation')
+  uploadedAt: Date; // Timestamp when uploaded
+  uploadedBy?: string; // User ID who uploaded
+  fileName: string; // Original file name
+  fileSize: number; // File size in bytes
+  mimeType: string; // MIME type (e.g., 'image/jpeg', 'application/pdf')
 }
 
 // Certificate
@@ -310,6 +379,51 @@ export interface StickerStockItem {
   issuedBy: string;
 }
 
+// Equipment Management
+export interface Equipment {
+  id: string;
+  name: string;
+  serialNumber?: string;
+  type: string; // e.g., "Mobile Crane", "Forklift", etc.
+  category: string; // e.g., "Lifting Equipment", "Transport Equipment"
+  manufacturer?: string;
+  model?: string;
+  checklistTemplate?: string; // Reference to checklist template
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy?: string;
+  notes?: string;
+}
+
+// Operator Management
+export interface Operator {
+  id: string;
+  name: string;
+  operatorId: string; // Unique operator ID
+  department: string;
+  designation?: string;
+  assessmentTemplate?: string; // Reference to assessment template
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy?: string;
+  notes?: string;
+}
+
+// Test Management (for NDT)
+export interface Test {
+  id: string;
+  name: string;
+  testCode: string; // Unique test code
+  category: string; // e.g., "Ultrasonic", "Radiographic", "Magnetic Particle"
+  formTemplate?: string; // Reference to form template
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy?: string;
+  notes?: string;
+}
 
 
 

@@ -34,22 +34,65 @@ import { logUserAction } from '@/utils/activityLogger';
 export const ApprovalDetail: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { currentUser, users, approveJobOrder, rejectJobOrder, jobOrders } = useAppContext();
+  const { currentUser, users, approveJobOrder, rejectJobOrder, requestRevision, jobOrders, assignJobOrder } = useAppContext();
   const jobOrder = useMemo(() => {
     return jobOrders.find((job) => job.id === jobId);
   }, [jobOrders, jobId]);
 
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [reviseDialogOpen, setReviseDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [comments, setComments] = useState('');
   const [useDelegation, setUseDelegation] = useState(false);
   const [delegatedToUserId, setDelegatedToUserId] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
 
   if (!jobOrder) {
     return <Alert severity="error">Job order not found</Alert>;
   }
 
+  // Debug logs
+  console.log('ApprovalDetail - Job Order:', jobOrder.id);
+  console.log('ApprovalDetail - Has reportData:', !!jobOrder.reportData);
+  console.log('ApprovalDetail - reportData:', jobOrder.reportData);
+  console.log('ApprovalDetail - evidence count:', jobOrder.evidence?.length || 0);
+  console.log('ApprovalDetail - signatures count:', jobOrder.signatures?.length || 0);
+
   const handleApprove = () => {
+    // For Job Order Approval (Pending status, no reportData), check if assignment is needed
+    if (jobOrder.status === 'Pending' && !jobOrder.reportData) {
+      // Job Order Approval - must assign before approving
+      if (!jobOrder.assignedTo && !selectedUserId) {
+        alert('Please select a user to assign this job before approving.');
+        return;
+      }
+      
+      // If user selected but not yet assigned, assign first
+      if (selectedUserId && !jobOrder.assignedTo) {
+        if (!assignJobOrder) {
+          alert('Error: Assignment function not available');
+          return;
+        }
+        const assigned = assignJobOrder(jobOrder.id, selectedUserId);
+        if (!assigned) {
+          alert('Failed to assign job. Please try again.');
+          return;
+        }
+        // Wait a bit for assignment to complete, then approve
+        setTimeout(() => {
+          if (approveJobOrder) {
+            approveJobOrder(jobOrder.id);
+            alert('Job assigned and approved successfully!');
+            setTimeout(() => {
+              navigate('/supervisor');
+            }, 100);
+          }
+        }, 200);
+        return;
+      }
+    }
+
+    // For Report Approval (Completed status with reportData)
     if (!confirm('Are you sure you want to approve this report?')) return;
 
     // Check if delegation is active
@@ -126,21 +169,57 @@ export const ApprovalDetail: React.FC = () => {
       alert('Please provide revision comments');
       return;
     }
-    alert('Revision request sent to inspector');
-    setReviseDialogOpen(false);
-    navigate('/supervisor');
+    
+    if (requestRevision && jobOrder) {
+      const success = requestRevision(jobOrder.id, comments);
+      
+      if (success) {
+        // Log action
+        logUserAction(
+          'REQUEST_REVISION',
+          'JOB_ORDER',
+          jobOrder.id,
+          jobOrder.id,
+          `Revision requested for job order: ${jobOrder.id}`,
+          { jobOrderId: jobOrder.id, comments: comments },
+          currentUser?.id || '',
+          currentUser?.name || '',
+          currentUser?.currentRole || currentUser?.roles[0] || ''
+        );
+        
+        alert('Revision request sent to inspector. Job status changed to "In Progress".');
+        setReviseDialogOpen(false);
+        setComments('');
+        // Small delay to ensure state updates before navigation
+        setTimeout(() => {
+          navigate('/supervisor');
+        }, 100);
+      } else {
+        alert('Failed to request revision. Please try again.');
+      }
+    }
   };
 
-  // Mock inspection data
-  const inspectionData = {
-    equipmentSerial: 'SN-12345',
-    location: jobOrder.location,
-    safetyCheck: 'Yes',
-    loadTest: 'Yes',
-    visualInspection: 'Yes',
-    condition: 'Good',
-    observations: 'Equipment is in good working condition. Minor wear on cable, recommend monitoring.',
-    photos: ['inspection_photo1.jpg', 'inspection_photo2.jpg', 'equipment_serial.jpg'],
+  // Load actual inspection data from job order reportData (submitted by inspector)
+  const inspectionData = jobOrder.reportData ? {
+    equipmentSerial: jobOrder.reportData.equipmentSerial || 'N/A',
+    location: jobOrder.reportData.location || jobOrder.location || 'N/A',
+    safetyCheck: jobOrder.reportData.safetyCheck || 'N/A',
+    loadTest: jobOrder.reportData.loadTest || 'N/A',
+    visualInspection: jobOrder.reportData.visualInspection || 'N/A',
+    condition: jobOrder.reportData.condition || 'N/A',
+    observations: jobOrder.reportData.observations || 'No observations provided',
+    photos: jobOrder.reportData.evidence?.filter((e: any) => e.type === 'Photo').map((e: any) => e.fileName) || [],
+  } : {
+    // If no report data submitted yet, show empty state
+    equipmentSerial: 'Not submitted yet',
+    location: jobOrder.location || 'N/A',
+    safetyCheck: 'Pending',
+    loadTest: 'Pending',
+    visualInspection: 'Pending',
+    condition: 'Pending',
+    observations: 'Inspector has not submitted the report yet.',
+    photos: [],
   };
 
   return (
@@ -173,11 +252,22 @@ export const ApprovalDetail: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={3}>
               <Typography variant="body2" color="text.secondary">
-                Inspector
+                Assigned To
               </Typography>
               <Typography variant="body1" fontWeight={500}>
-                {jobOrder.assignedToName}
+                {jobOrder.assignedToName || 'Not assigned'}
               </Typography>
+              {!jobOrder.assignedTo && jobOrder.status === 'Pending' && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="primary"
+                  onClick={() => setAssignDialogOpen(true)}
+                  sx={{ mt: 1 }}
+                >
+                  Assign Now
+                </Button>
+              )}
             </Grid>
             <Grid item xs={12} md={3}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
@@ -279,7 +369,7 @@ export const ApprovalDetail: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Photos */}
+      {/* Photos / Evidence */}
       <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
         <Box
           sx={{
@@ -290,17 +380,162 @@ export const ApprovalDetail: React.FC = () => {
         />
         <CardContent sx={{ p: 4 }}>
           <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
-            Photo Documentation
+            Evidence Collection
           </Typography>
-          <List>
-            {inspectionData.photos.map((photo, index) => (
-              <ListItem key={index}>
-                <ListItemText primary={photo} secondary="Click to view" />
-              </ListItem>
-            ))}
-          </List>
+          <Divider sx={{ mb: 2 }} />
+          {jobOrder.evidence && jobOrder.evidence.length > 0 ? (
+            <Grid container spacing={2}>
+              {jobOrder.evidence.map((item, index) => (
+                <Grid item xs={12} md={6} key={index}>
+                  <Card variant="outlined" sx={{ p: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body1" fontWeight={600} gutterBottom>
+                          {item.fileName}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                          <Chip label={item.type} size="small" color="primary" />
+                          <Chip label={item.category} size="small" color="secondary" />
+                        </Box>
+                        {item.description && (
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            {item.description}
+                          </Typography>
+                        )}
+                        {item.linkedField && (
+                          <Typography variant="caption" color="text.secondary">
+                            Linked to: {item.linkedField}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              {jobOrder.reportData ? 'No photos/evidence uploaded.' : 'Inspector has not uploaded any evidence yet.'}
+            </Typography>
+          )}
         </CardContent>
       </Card>
+
+      {/* Signatures */}
+      {jobOrder.signatures && jobOrder.signatures.length > 0 && (
+        <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+          <Box
+            sx={{
+              background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+              color: 'white',
+              p: 2,
+            }}
+          />
+          <CardContent sx={{ p: 4 }}>
+            <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
+              Signatures Collected
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <Grid container spacing={3}>
+              {jobOrder.signatures.map((signature, index) => (
+                <Grid item xs={12} md={6} key={signature.id}>
+                  <Card variant="outlined" sx={{ p: 2 }}>
+                    <Typography variant="body1" fontWeight={600} gutterBottom>
+                      {signature.signerName}
+                    </Typography>
+                    {signature.signerRole && (
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Role: {signature.signerRole}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                      Signed at: {format(new Date(signature.signedAt), 'MMMM dd, yyyy hh:mm a')}
+                    </Typography>
+                    <Box
+                      sx={{
+                        mt: 2,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        p: 1,
+                        backgroundColor: 'grey.50',
+                      }}
+                    >
+                      <img
+                        src={signature.signatureData}
+                        alt={`Signature of ${signature.signerName}`}
+                        style={{ width: '100%', height: 'auto', display: 'block' }}
+                      />
+                    </Box>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Job Assignment Section - Only show if job is Pending and not assigned */}
+      {jobOrder.status === 'Pending' && !jobOrder.assignedTo && (
+        <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+          <Box
+            sx={{
+              background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+              color: 'white',
+              p: 2,
+            }}
+          >
+            <Typography variant="h6" fontWeight={600}>
+              Assign Job
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>
+              Assign this job to an inspector or trainer
+            </Typography>
+          </Box>
+          <CardContent sx={{ p: 4 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              This job order needs to be assigned to a team member before it can be executed.
+            </Alert>
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel>Select User to Assign</InputLabel>
+              <Select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                label="Select User to Assign"
+              >
+                {users
+                  .filter((u) => 
+                    // Exclude clients - only show system users (inspector, trainer, supervisor, etc.)
+                    !u.roles.includes('client') && 
+                    u.id !== currentUser?.id &&
+                    (u.roles.includes('inspector') || 
+                     u.roles.includes('trainer') || 
+                     u.roles.includes('supervisor') ||
+                     u.roles.includes('manager'))
+                  )
+                  .map((user) => (
+                    <MenuItem key={user.id} value={user.id}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <PersonIcon fontSize="small" />
+                        <Box>
+                          <Typography variant="body2" fontWeight={500}>
+                            {user.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {user.roles.join(', ')} • {user.email}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Select a user above. The job will be assigned when you click "Approve Job Order" below.
+            </Alert>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Delegation Option */}
       {currentUser && (currentUser.roles.includes('supervisor') || currentUser.roles.includes('manager') || currentUser.roles.includes('gm')) && (
@@ -363,39 +598,80 @@ export const ApprovalDetail: React.FC = () => {
             Please review all submitted data carefully before taking action.
           </Alert>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<RejectIcon />}
-              onClick={() => setRejectDialogOpen(true)}
-              sx={{ px: 3 }}
-            >
-              Reject Report
-            </Button>
-            <Button
-              variant="outlined"
-              color="warning"
-              startIcon={<ReviseIcon />}
-              onClick={() => setReviseDialogOpen(true)}
-              sx={{ px: 3 }}
-            >
-              Request Revision
-            </Button>
-            <Button 
-              variant="contained" 
-              color="success" 
-              startIcon={<ApproveIcon />} 
-              onClick={handleApprove}
-              sx={{
-                px: 4,
-                background: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #0a3e4e 0%, #61a270 100%)',
-                },
-              }}
-            >
-              Approve Report
-            </Button>
+            {/* Check if this is Job Order Approval or Report Approval */}
+            {jobOrder.status === 'Pending' && !jobOrder.reportData ? (
+              // Job Order Approval (before execution)
+              <>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<RejectIcon />}
+                  onClick={() => setRejectDialogOpen(true)}
+                  sx={{ px: 3 }}
+                >
+                  Reject Job Order
+                </Button>
+                <Button 
+                  variant="contained" 
+                  color="success" 
+                  startIcon={<ApproveIcon />} 
+                  onClick={handleApprove}
+                  disabled={!jobOrder.assignedTo && !selectedUserId}
+                  sx={{
+                    px: 4,
+                    background: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #0a3e4e 0%, #61a270 100%)',
+                    },
+                    '&:disabled': {
+                      background: 'grey.300',
+                      color: 'grey.600',
+                    },
+                  }}
+                >
+                  {!jobOrder.assignedTo && !selectedUserId 
+                    ? 'Select User to Approve' 
+                    : 'Approve Job Order'}
+                </Button>
+              </>
+            ) : (
+              // Report Approval (after execution)
+              <>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<RejectIcon />}
+                  onClick={() => setRejectDialogOpen(true)}
+                  sx={{ px: 3 }}
+                >
+                  Reject Report
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  startIcon={<ReviseIcon />}
+                  onClick={() => setReviseDialogOpen(true)}
+                  sx={{ px: 3 }}
+                >
+                  Request Revision
+                </Button>
+                <Button 
+                  variant="contained" 
+                  color="success" 
+                  startIcon={<ApproveIcon />} 
+                  onClick={handleApprove}
+                  sx={{
+                    px: 4,
+                    background: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #0a3e4e 0%, #61a270 100%)',
+                    },
+                  }}
+                >
+                  Approve Report
+                </Button>
+              </>
+            )}
           </Box>
         </CardContent>
       </Card>

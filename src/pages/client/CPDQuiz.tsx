@@ -17,6 +17,7 @@ import {
 import {
   ArrowBack as BackIcon,
   CheckCircle as CheckIcon,
+  CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   Description as QuizIcon,
 } from '@mui/icons-material';
@@ -270,24 +271,26 @@ export const CPDQuiz: React.FC = () => {
                         border: '2px solid',
                         borderColor:
                           correct
-                            ? 'success.main'
+                            ? '#1e3c72'
                             : wrong
-                            ? 'error.main'
+                            ? '#c62828'
                             : selected
-                            ? 'primary.main'
-                            : 'divider',
-                        borderRadius: 2,
+                            ? '#1e3c72'
+                            : '#e0e0e0',
+                        borderRadius: 3,
                         bgcolor:
                           correct
-                            ? 'success.light'
+                            ? '#e3f2fd'
                             : wrong
-                            ? 'error.light'
+                            ? '#ffebee'
                             : selected
-                            ? 'primary.light'
-                            : 'transparent',
-                        transition: 'all 0.3s ease',
+                            ? '#f0f7ff'
+                            : 'white',
+                        transition: 'all 0.2s ease',
+                        boxShadow: selected || correct || wrong ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
                         '&:hover': {
-                          borderColor: isSubmitted ? undefined : 'primary.main',
+                          borderColor: isSubmitted ? undefined : '#1e3c72',
+                          bgcolor: isSubmitted ? undefined : (selected ? '#f0f7ff' : '#f5f5f5'),
                         },
                       }}
                     >
@@ -297,37 +300,73 @@ export const CPDQuiz: React.FC = () => {
                           <Radio
                             sx={{
                               color: correct
-                                ? 'success.main'
+                                ? '#1e3c72'
                                 : wrong
-                                ? 'error.main'
+                                ? '#c62828'
                                 : selected
-                                ? 'primary.main'
+                                ? '#1e3c72'
                                 : 'default',
+                              '&.Mui-checked': {
+                                color: correct ? '#1e3c72' : wrong ? '#c62828' : '#1e3c72',
+                              },
                             }}
                           />
                         }
                         label={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', py: 1 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%', py: 1 }}>
                             <Typography
                               variant="body1"
                               sx={{
-                                fontWeight: selected || correct || wrong ? 600 : 400,
+                                fontWeight: selected || correct || wrong ? 600 : 500,
+                                fontSize: '1rem',
                                 color: correct
-                                  ? 'success.dark'
+                                  ? '#1e3c72'
                                   : wrong
-                                  ? 'error.dark'
+                                  ? '#c62828'
                                   : selected
-                                  ? 'primary.main'
-                                  : 'text.primary',
+                                  ? '#1e3c72'
+                                  : '#2c3e50',
                               }}
                             >
                               {option}
                             </Typography>
-                            {correct && <CheckIcon sx={{ color: 'success.main', ml: 'auto' }} />}
-                            {wrong && <CancelIcon sx={{ color: 'error.main', ml: 'auto' }} />}
+                            {correct && (
+                              <Box
+                                sx={{
+                                  ml: 'auto',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: '50%',
+                                  bgcolor: '#1e3c72',
+                                  color: 'white',
+                                }}
+                              >
+                                <CheckIcon sx={{ fontSize: 20 }} />
+                              </Box>
+                            )}
+                            {wrong && (
+                              <Box
+                                sx={{
+                                  ml: 'auto',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: '50%',
+                                  bgcolor: '#c62828',
+                                  color: 'white',
+                                }}
+                              >
+                                <CancelIcon sx={{ fontSize: 20 }} />
+                              </Box>
+                            )}
                           </Box>
                         }
-                        sx={{ m: 0, p: 2, width: '100%' }}
+                        sx={{ m: 0, p: 2.5, width: '100%' }}
                       />
                     </Card>
                   );
@@ -340,28 +379,66 @@ export const CPDQuiz: React.FC = () => {
 
       {/* Results */}
       {isSubmitted && score !== null && (
-        <Alert
-          severity={score >= 70 ? 'success' : 'warning'}
-          sx={{ mb: 3 }}
-          action={
-            <Button
-              color="inherit"
-              size="small"
-              onClick={() => navigate(`/client/cpd/${categoryId}`)}
-            >
-              Back to Category
-            </Button>
-          }
+        <Card
+          elevation={3}
+          sx={{
+            mb: 3,
+            borderRadius: 3,
+            overflow: 'hidden',
+            background: score >= 70
+              ? 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)'
+              : 'linear-gradient(135deg, #e67e22 0%, #d35400 100%)',
+            color: 'white',
+          }}
         >
-          <Typography variant="h6" gutterBottom>
-            Quiz Completed!
-          </Typography>
-          <Typography variant="body2">
-            Your score: <strong>{score}%</strong> ({score >= 70 ? 'Passed' : 'Failed'})
-            <br />
-            You've earned {quiz.hours} CPD hours.
-          </Typography>
-        </Alert>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
+              <Box sx={{ flexGrow: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                  <CheckCircleIcon sx={{ fontSize: 32, color: 'white' }} />
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: 'white' }}>
+                    Quiz Completed!
+                  </Typography>
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
+                  Your Score: <strong style={{ fontSize: '1.2em' }}>{score}%</strong>
+                </Typography>
+                <Chip
+                  label={score >= 70 ? 'Passed' : 'Failed'}
+                  sx={{
+                    bgcolor: score >= 70 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.2)',
+                    color: 'white',
+                    fontWeight: 700,
+                    mb: 1.5,
+                    fontSize: '0.875rem',
+                    height: 28,
+                  }}
+                />
+                <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.95)', lineHeight: 1.6 }}>
+                  You've earned <strong>{quiz.hours}</strong> CPD hours.
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                size="medium"
+                onClick={() => navigate(`/client/cpd/${categoryId}`)}
+                sx={{
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  fontWeight: 600,
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.3)',
+                    border: '1px solid rgba(255,255,255,0.5)',
+                  },
+                  px: 3,
+                }}
+              >
+                Back to Category
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
       )}
 
       {/* Navigation Buttons */}
@@ -396,7 +473,19 @@ export const CPDQuiz: React.FC = () => {
             disabled={answeredCount < totalQuestions || isSubmitted}
             sx={{
               flex: 1,
-              background: 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
+              background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+              color: 'white',
+              fontWeight: 700,
+              fontSize: '1rem',
+              textTransform: 'none',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #2a5298 0%, #3d6bb3 100%)',
+                boxShadow: '0 6px 20px rgba(30, 60, 114, 0.4)',
+              },
+              '&:disabled': {
+                background: '#bdbdbd',
+                color: '#757575',
+              },
               '&:hover': {
                 background: 'linear-gradient(135deg, #218838 0%, #1e7e34 100%)',
               },

@@ -7,6 +7,7 @@ import {
   TrainingSession,
   NDTReport,
   User,
+  Notification,
 } from '@/types';
 import {
   mockClients,
@@ -16,6 +17,7 @@ import {
   mockTrainingSessions,
   mockNDTReports,
   mockUsers,
+  mockNotifications,
 } from '@/utils/mockData';
 import { extractCertificateNumber } from '@/utils/verificationParser';
 import { format } from 'date-fns';
@@ -30,10 +32,12 @@ interface AppContextType {
   ndtReports: NDTReport[];
   users: User[];
   currentUser: User | null;
+  notifications: Notification[];
 
   // Actions
   setCurrentUser: (user: User | null) => void;
   setUsers: (users: User[]) => void;
+  markNotificationAsRead: (notificationId: string) => void;
   
   // Certificate actions
   verifyCertificate: (certificateNumber: string) => Certificate | null;
@@ -42,10 +46,18 @@ interface AppContextType {
   // Job Order actions
   createJobOrder: (jobOrder: Omit<JobOrder, 'id' | 'createdAt' | 'updatedAt'>) => JobOrder | null;
   updateJobOrder: (jobOrderId: string, updates: Partial<JobOrder>) => boolean;
+  assignJobOrder: (jobOrderId: string, userId: string) => boolean;
   submitJobOrderReport: (
     jobOrderId: string,
     reportData: any,
-    photos: File[]
+    photos: File[],
+    signatures?: Array<{
+      id: string;
+      signerName: string;
+      signerRole?: string;
+      signatureData: string;
+      signedAt: Date;
+    }>
   ) => boolean;
   
   // Training Session actions
@@ -70,7 +82,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const useAppContext = () => {
   const context = useContext(AppContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAppContext must be used within AppProvider');
   }
   return context;
@@ -97,29 +109,146 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         dateTime: new Date(jo.dateTime),
         createdAt: new Date(jo.createdAt),
         updatedAt: new Date(jo.updatedAt),
+        // Parse signatures dates if they exist
+        signatures: jo.signatures?.map((sig: any) => ({
+          ...sig,
+          signedAt: new Date(sig.signedAt),
+        })),
+        // reportData is already JSON, no need to parse dates inside it
+        reportData: jo.reportData,
+        evidence: jo.evidence,
       }));
     }
     return mockJobOrders;
   });
+
+  // Listen for jobOrdersUpdated event to reload from localStorage
+  useEffect(() => {
+    const handleJobOrdersUpdate = () => {
+      const stored = localStorage.getItem('jobOrders');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const updated = parsed.map((jo: any) => ({
+            ...jo,
+            dateTime: new Date(jo.dateTime),
+            createdAt: new Date(jo.createdAt),
+            updatedAt: new Date(jo.updatedAt),
+            signatures: jo.signatures?.map((sig: any) => ({
+              ...sig,
+              signedAt: new Date(sig.signedAt),
+            })),
+            reportData: jo.reportData,
+            evidence: jo.evidence,
+          }));
+          setJobOrders(updated);
+          console.log('AppContext - Reloaded jobOrders from localStorage:', updated.length, 'jobs');
+        } catch (error) {
+          console.error('Error reloading jobOrders from localStorage:', error);
+        }
+      }
+    };
+    
+    window.addEventListener('jobOrdersUpdated', handleJobOrdersUpdate);
+    return () => window.removeEventListener('jobOrdersUpdated', handleJobOrdersUpdate);
+  }, []);
 
   // Create Job Order
   const createJobOrder = (
     jobOrderData: Omit<JobOrder, 'id' | 'createdAt' | 'updatedAt'>
   ): JobOrder | null => {
     try {
+      // Get current job orders to calculate next ID
+      const currentJobs = JSON.parse(localStorage.getItem('jobOrders') || '[]');
+      
+      // Create the new job order
       const newJobOrder: JobOrder = {
         ...jobOrderData,
-        id: `JO-${new Date().getFullYear()}${String(jobOrders.length + 1).padStart(3, '0')}`,
+        id: `JO-${new Date().getFullYear()}${String(currentJobs.length + 1).padStart(3, '0')}`,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      setJobOrders((prev) => {
-        const updated = [...prev, newJobOrder];
-        // Dispatch custom event to notify components
-        setTimeout(() => window.dispatchEvent(new CustomEvent('jobOrdersUpdated')), 0);
+      // Create notifications for supervisor and admin/manager BEFORE updating state
+      // Find users with supervisor and manager roles
+      const storedUsers = JSON.parse(localStorage.getItem('users') || '[]') as User[];
+      const supervisorUsers = storedUsers.filter(u => 
+        u.roles.includes('supervisor') || u.currentRole === 'supervisor'
+      );
+      const managerUsers = storedUsers.filter(u => 
+        u.roles.includes('manager') || u.roles.includes('gm') || u.currentRole === 'manager'
+      );
+      
+      const newNotifications: Notification[] = [];
+      const now = new Date();
+      const timestamp = Date.now();
+      
+      // Create notification for supervisor
+      supervisorUsers.forEach((supervisor, index) => {
+        newNotifications.push({
+          id: `notif-${newJobOrder.id}-supervisor-${supervisor.id}-${timestamp}-${index}`,
+          userId: supervisor.id,
+          type: 'approval',
+          title: 'New Service Request',
+          message: `New service request ${newJobOrder.id} from ${newJobOrder.clientName} for ${newJobOrder.serviceTypes?.join(', ') || 'services'}`,
+          read: false,
+          createdAt: now,
+          link: `/supervisor/approvals/${newJobOrder.id}`,
+        });
+      });
+      
+      // Create notification for manager/admin
+      managerUsers.forEach((manager, index) => {
+        newNotifications.push({
+          id: `notif-${newJobOrder.id}-manager-${manager.id}-${timestamp}-${index}`,
+          userId: manager.id,
+          type: 'approval',
+          title: 'New Service Request',
+          message: `New service request ${newJobOrder.id} from ${newJobOrder.clientName} for ${newJobOrder.serviceTypes?.join(', ') || 'services'}`,
+          read: false,
+          createdAt: now,
+          link: `/supervisor/approvals/${newJobOrder.id}`, // Manager can also view via supervisor route
+        });
+      });
+      
+      // Add notifications to state
+      if (newNotifications.length > 0) {
+        setAllNotifications((prev) => {
+          const updated = [...prev, ...newNotifications];
+          localStorage.setItem('notifications', JSON.stringify(updated));
+          console.log('✅ Created notifications for supervisor and manager:', newNotifications.length);
         return updated;
       });
+      }
+
+      // Get current job orders from localStorage (most up-to-date source)
+      const currentJobOrdersFromStorage = JSON.parse(localStorage.getItem('jobOrders') || '[]');
+      const updatedJobOrders = [...currentJobOrdersFromStorage, newJobOrder];
+      
+      // Save to localStorage FIRST (synchronously)
+      try {
+        localStorage.setItem('jobOrders', JSON.stringify(updatedJobOrders));
+        console.log('✅ Job order created and saved:', {
+          id: newJobOrder.id,
+          status: newJobOrder.status,
+          clientName: newJobOrder.clientName,
+          totalJobs: updatedJobOrders.length
+        });
+      } catch (error) {
+        console.error('Error saving to localStorage:', error);
+      }
+      
+      // Update state
+      setJobOrders(updatedJobOrders);
+      
+      // Dispatch custom event AFTER state and localStorage are updated
+      // Also dispatch a notifications update event
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('jobOrdersUpdated'));
+        window.dispatchEvent(new CustomEvent('notificationsUpdated'));
+        console.log('📢 jobOrdersUpdated and notificationsUpdated events dispatched');
+      }, 50); // Small delay to ensure state update is processed
+      
       return newJobOrder;
     } catch (error) {
       console.error('Error creating job order:', error);
@@ -184,8 +313,53 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const [users, setUsers] = useState<User[]>(() => {
     const stored = localStorage.getItem('users');
-    return stored ? JSON.parse(stored) : mockUsers;
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Verify we have all required users, especially user-6 (admin/manager)
+        const hasUser6 = parsed.some((u: User) => u.id === 'user-6');
+        if (!hasUser6) {
+          console.warn('⚠️ AppContext: user-6 (admin/manager) not found in localStorage users. Reinitializing with mockUsers.');
+          localStorage.setItem('users', JSON.stringify(mockUsers));
+          return mockUsers;
+        }
+        console.log('✅ AppContext: Loaded users from localStorage. Total:', parsed.length, 'Has user-6:', hasUser6);
+        return parsed;
+      } catch (e) {
+        console.error('❌ AppContext: Error parsing users from localStorage:', e);
+        console.log('🔄 AppContext: Reinitializing users with mockUsers.');
+        localStorage.setItem('users', JSON.stringify(mockUsers));
+        return mockUsers;
+      }
+    }
+    console.log('📝 AppContext: No users in localStorage. Initializing with mockUsers.');
+    localStorage.setItem('users', JSON.stringify(mockUsers));
+    return mockUsers;
   });
+
+  // Notifications - filter by current user
+  const [allNotifications, setAllNotifications] = useState<Notification[]>(() => {
+    const stored = localStorage.getItem('notifications');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.map((n: any) => ({
+        ...n,
+        createdAt: new Date(n.createdAt),
+      }));
+    }
+    const initial = mockNotifications.map((n) => ({
+      ...n,
+      createdAt: new Date(n.createdAt),
+    }));
+    // Save to localStorage
+    localStorage.setItem('notifications', JSON.stringify(initial));
+    return initial;
+  });
+
+  // Save notifications to localStorage
+  useEffect(() => {
+    localStorage.setItem('notifications', JSON.stringify(allNotifications));
+  }, [allNotifications]);
 
   // Sync users to localStorage
   // But check if localStorage was updated externally first to avoid overwriting
@@ -231,14 +405,36 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // Listen for users updates from other components
   useEffect(() => {
     const handleUsersUpdate = () => {
+      console.log('🔄 usersUpdated event received, reloading...');
       const stored = localStorage.getItem('users');
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
           setUsers(parsed);
-          console.log(' AppContext: Users updated from localStorage');
+          console.log('✅ AppContext: Users updated from localStorage, count:', parsed.length);
+          
+          // CRITICAL: Update currentUser if it was modified
+          const storedCurrentUser = localStorage.getItem('currentUser');
+          if (storedCurrentUser) {
+            const currentUserData = JSON.parse(storedCurrentUser);
+            const updatedCurrentUser = parsed.find((u: User) => u.id === currentUserData.id);
+            if (updatedCurrentUser) {
+              console.log('✅ AppContext: Updating currentUser with latest permissions:', {
+                userId: updatedCurrentUser.id,
+                name: updatedCurrentUser.name,
+                permissions: updatedCurrentUser.permissions
+              });
+              localStorage.setItem('currentUser', JSON.stringify(updatedCurrentUser));
+              setCurrentUserState(updatedCurrentUser);
+              
+              // Force re-render by dispatching another event
+              setTimeout(() => {
+                window.dispatchEvent(new Event('currentUserUpdated'));
+              }, 100);
+            }
+          }
         } catch (e) {
-          console.error('Failed to parse users from localStorage', e);
+          console.error('❌ Failed to parse users from localStorage', e);
         }
       }
     };
@@ -255,31 +451,51 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // Load currentUser from localStorage on init, then sync with users array
   const [currentUser, setCurrentUserState] = useState<User | null>(() => {
     const stored = localStorage.getItem('currentUser');
-    console.log(' AppContext: Loading currentUser from localStorage:', stored);
+    console.log('🔍 AppContext: Loading currentUser from localStorage. Raw data:', stored ? 'EXISTS' : 'NOT FOUND');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        console.log(' AppContext: Loaded currentUser:', parsed?.name, parsed?.id, 'Region:', parsed?.regionId, 'Team:', parsed?.teamId);
+        console.log('📥 AppContext: Parsed currentUser:', {
+          name: parsed?.name,
+          id: parsed?.id,
+          currentRole: parsed?.currentRole,
+          email: parsed?.email
+        });
         
-        // Try to sync with users array if available (for initial load)
+        // Try to sync with users array if available (for initial load only)
+        // IMPORTANT: Only sync if userId matches exactly - prevents loading wrong user's data
         const storedUsers = localStorage.getItem('users');
         if (storedUsers) {
           try {
             const usersArray = JSON.parse(storedUsers) as User[];
             const updatedUser = usersArray.find((u) => u.id === parsed.id);
-            if (updatedUser) {
+            if (updatedUser && updatedUser.id === parsed.id && updatedUser.id === parsed.id) { // Triple check userId matches
               // Merge with latest data from users array (especially region/team)
+              // IMPORTANT: Preserve currentRole from parsed (set during login), don't override it
+              const preservedCurrentRole = parsed.currentRole;
               const syncedUser = {
-                ...parsed,
-                ...updatedUser, // Override with latest data
+                ...updatedUser, // Start with latest user data
+                currentRole: preservedCurrentRole, // Preserve the role set during login
+                // Keep any other session-specific data from parsed
               };
-              console.log(' AppContext: Synced currentUser with users array on init. Region:', syncedUser.regionId, 'Team:', syncedUser.teamId);
+              console.log(' AppContext: Synced currentUser with users array on init. User:', syncedUser.name, 'ID:', syncedUser.id, 'Role:', syncedUser.currentRole, 'Region:', syncedUser.regionId, 'Team:', syncedUser.teamId);
+              // Verify the sync didn't corrupt the data
+              if (syncedUser.id !== parsed.id) {
+                console.error('❌ AppContext: CRITICAL - User ID mismatch after sync! Expected:', parsed.id, 'Got:', syncedUser.id);
+                return parsed; // Return original if sync corrupted data
+              }
               // Save synced version back to localStorage
               localStorage.setItem('currentUser', JSON.stringify(syncedUser));
               return syncedUser;
+            } else {
+              console.warn(' AppContext: User ID mismatch or user not found in users array. Parsed User ID:', parsed.id, 'Found User ID:', updatedUser?.id);
+              // Return parsed as-is if we can't sync (better than wrong data)
+        return parsed;
             }
-          } catch (e) {
+      } catch (e) {
             console.error(' AppContext: Error syncing currentUser with users array:', e);
+            // Return parsed as-is if sync fails
+            return parsed;
           }
         }
         
@@ -294,23 +510,67 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   });
   
   // Wrapper to persist currentUser to localStorage
+  // IMPORTANT: This is called during login - do NOT sync here, just save the user as-is
   const setCurrentUser = (user: User | null) => {
-    console.log(' AppContext: Setting currentUser:', user?.name, user?.id, user?.currentRole);
-    setCurrentUserState(user);
+    console.log('🔐 AppContext: setCurrentUser called. New user:', {
+      name: user?.name,
+      id: user?.id,
+      currentRole: user?.currentRole,
+      email: user?.email
+    });
+    
+    // CRITICAL: Clear old state first to force re-render
+    setCurrentUserState(null);
+    
     if (user) {
+      // Verify user data is complete
+      if (!user.id || !user.name) {
+        console.error('❌ AppContext: Invalid user data! Missing id or name:', user);
+        return;
+      }
+      
+      // Save user directly without syncing - login sets the correct user and role
       localStorage.setItem('currentUser', JSON.stringify(user));
-      console.log(' AppContext: Saved currentUser to localStorage');
+      console.log('💾 AppContext: Saved currentUser to localStorage:', user.name, user.id, user.currentRole);
+      
+      // Set state AFTER saving to localStorage to ensure consistency
+      // Use setTimeout to ensure localStorage write completes first
+      setTimeout(() => {
+        setCurrentUserState(user);
+        console.log('✅ AppContext: currentUser state updated:', user.name, user.id, user.currentRole);
+        // Dispatch event to notify other components
+        window.dispatchEvent(new CustomEvent('currentUserUpdated', { detail: user }));
+      }, 0);
     } else {
       localStorage.removeItem('currentUser');
-      console.log(' AppContext: Removed currentUser from localStorage');
+      console.log('🗑️ AppContext: Removed currentUser from localStorage');
+      setCurrentUserState(null);
     }
   };
 
+  // Filter notifications for current user (must be after currentUser declaration)
+  const notifications = useMemo(() => {
+    if (!currentUser) return [];
+    return allNotifications.filter(n => n.userId === currentUser.id);
+  }, [allNotifications, currentUser]);
+
+  // Mark notification as read
+  const markNotificationAsRead = (notificationId: string) => {
+    setAllNotifications((prev) => {
+      const updated = prev.map((n) =>
+        n.id === notificationId ? { ...n, read: true } : n
+      );
+      localStorage.setItem('notifications', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Sync currentUser with users array when users are updated (e.g., region/team assigned)
+  // IMPORTANT: Only sync if userId matches - prevents wrong user data from being loaded
   useEffect(() => {
     if (currentUser && users.length > 0) {
       const updatedUser = users.find((u) => u.id === currentUser.id);
-      if (updatedUser) {
+      if (updatedUser && updatedUser.id === currentUser.id) { // Double check userId matches
         // Always sync to ensure currentUser has latest data (especially region/team)
         // Check if any important fields have changed
         const needsSync = 
@@ -321,16 +581,22 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           JSON.stringify(updatedUser.roles) !== JSON.stringify(currentUser.roles);
         
         if (needsSync) {
-          console.log(' AppContext: Syncing currentUser with updated user data. Old Region:', currentUser.regionId, 'New Region:', updatedUser.regionId);
+          console.log(' AppContext: Syncing currentUser with updated user data. User:', currentUser.name, 'ID:', currentUser.id, 'Old Region:', currentUser.regionId, 'New Region:', updatedUser.regionId);
+          // IMPORTANT: Preserve currentRole from currentUser (set during login), don't override it
+          const preservedCurrentRole = currentUser.currentRole;
           const syncedUser: User = {
-            ...currentUser,
-            ...updatedUser, // Override with latest data from users array
+            ...updatedUser, // Start with latest user data
+            currentRole: preservedCurrentRole, // Preserve the role set during login
+            // Keep any other session-specific data from currentUser
           };
-          setCurrentUser(syncedUser);
+          console.log(' AppContext: Preserved currentRole:', preservedCurrentRole, 'for user:', syncedUser.name, 'ID:', syncedUser.id);
+          // Use setCurrentUserState directly to avoid triggering this effect again
+          setCurrentUserState(syncedUser);
+          localStorage.setItem('currentUser', JSON.stringify(syncedUser));
         }
       } else {
-        // User not found in users array - might have been deleted
-        console.warn(' AppContext: currentUser not found in users array. User may have been deleted.');
+        // User not found in users array or ID mismatch - might have been deleted or wrong user
+        console.warn(' AppContext: currentUser not found in users array or ID mismatch. Current User ID:', currentUser.id, 'Expected to find user with same ID.');
       }
     }
   }, [users, currentUser?.id]); // Sync whenever users array changes or currentUser ID changes
@@ -404,16 +670,87 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     updates: Partial<JobOrder>
   ): boolean => {
     try {
-      setJobOrders((prev) =>
-        prev.map((jo) =>
+      setJobOrders((prev) => {
+        const updated = prev.map((jo) =>
           jo.id === jobOrderId
             ? { ...jo, ...updates, updatedAt: new Date() }
             : jo
-        )
-      );
+        );
+        // Save to localStorage
+        localStorage.setItem('jobOrders', JSON.stringify(updated));
+        // Dispatch event
+        setTimeout(() => window.dispatchEvent(new CustomEvent('jobOrdersUpdated')), 0);
+        return updated;
+      });
       return true;
     } catch (error) {
       console.error('Error updating job order:', error);
+      return false;
+    }
+  };
+
+  // Assign Job Order to a user (inspector, trainer, etc.)
+  const assignJobOrder = (jobOrderId: string, userId: string): boolean => {
+    try {
+      const assignedUser = users.find(u => u.id === userId);
+      if (!assignedUser) {
+        console.error('User not found for assignment');
+        return false;
+      }
+
+      const jobOrder = jobOrders.find(jo => jo.id === jobOrderId);
+      if (!jobOrder) {
+        console.error('Job order not found');
+        return false;
+      }
+
+      // Update job order with assignment
+      setJobOrders((prev) => {
+        const updated = prev.map((jo) =>
+          jo.id === jobOrderId
+            ? {
+                ...jo,
+                assignedTo: userId,
+                assignedToName: assignedUser.name,
+                status: 'In Progress', // Change status to In Progress when assigned
+                updatedAt: new Date(),
+              }
+            : jo
+        );
+        // Save to localStorage
+        localStorage.setItem('jobOrders', JSON.stringify(updated));
+        
+        // Create notification for assigned user
+        const newNotification: Notification = {
+          id: `notif-assign-${jobOrderId}-${userId}-${Date.now()}`,
+          userId: userId,
+          type: 'assignment',
+          title: 'Job Assigned',
+          message: `Job order ${jobOrderId} has been assigned to you. Client: ${jobOrder.clientName}`,
+          read: false,
+          createdAt: new Date(),
+          link: `/inspector/jobs/${jobOrderId}`,
+        };
+
+        // Add notification
+        setAllNotifications((prev) => {
+          const updatedNotifications = [...prev, newNotification];
+          localStorage.setItem('notifications', JSON.stringify(updatedNotifications));
+          return updatedNotifications;
+        });
+
+        // Dispatch events
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('jobOrdersUpdated'));
+          window.dispatchEvent(new CustomEvent('notificationsUpdated'));
+          console.log('✅ Job assigned and notification created');
+        }, 50);
+
+        return updated;
+      });
+      return true;
+    } catch (error) {
+      console.error('Error assigning job order:', error);
       return false;
     }
   };
@@ -422,26 +759,42 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const submitJobOrderReport = (
     jobOrderId: string,
     reportData: any,
-    photos: File[]
+    photos: File[],
+    signatures?: Array<{
+      id: string;
+      signerName: string;
+      signerRole?: string;
+      signatureData: string;
+      signedAt: Date;
+    }>
   ): boolean => {
     try {
-      // Update job order status to Completed
-      setJobOrders((prev) =>
-        prev.map((jo) =>
+      // Update job order status to Completed and save all report data
+      setJobOrders((prev) => {
+        const updated = prev.map((jo) =>
           jo.id === jobOrderId
             ? {
                 ...jo,
                 status: 'Completed',
+                reportData: reportData, // Save form data and evidence metadata
+                signatures: signatures || [],
+                evidence: reportData?.evidence || [], // Save evidence metadata
                 updatedAt: new Date(),
               }
             : jo
-        )
-      );
+        );
+        
+        // Save to localStorage for persistence
+        localStorage.setItem('jobOrders', JSON.stringify(updated));
+        
+        return updated;
+      });
 
       console.log('Report submitted:', {
         jobOrderId,
         reportData,
         photos: photos.map((p) => p.name),
+        signatures: signatures?.length || 0,
       });
 
       return true;
@@ -455,17 +808,28 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const approveJobOrder = useCallback((jobOrderId: string): boolean => {
     try {
       setJobOrders((prev) => {
+        const jobOrder = prev.find(jo => jo.id === jobOrderId);
+        const isReportApproval = jobOrder?.status === 'Completed' && jobOrder?.reportData;
+        
         const updated = prev.map((jo) =>
           jo.id === jobOrderId
             ? {
                 ...jo,
-                status: 'Approved' as const,
+                // If approving a report (Completed status with reportData), change to Approved
+                // If approving a job order (Pending status), change to In Progress (so inspector can execute)
+                status: isReportApproval ? ('Approved' as const) : ('In Progress' as const),
                 updatedAt: new Date(),
               }
             : jo
       );
+        // Save to localStorage
+        localStorage.setItem('jobOrders', JSON.stringify(updated));
+        console.log('✅ Job order approved:', jobOrderId, 'Status:', isReportApproval ? 'Approved' : 'In Progress');
         // Dispatch custom event to notify components
-        setTimeout(() => window.dispatchEvent(new CustomEvent('jobOrdersUpdated')), 0);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('jobOrdersUpdated'));
+          console.log('📢 jobOrdersUpdated event dispatched after approval');
+        }, 0);
         return updated;
       });
       return true;
@@ -478,8 +842,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // Reject Job Order
   const rejectJobOrder = (jobOrderId: string, reason: string): boolean => {
     try {
-      setJobOrders((prev) =>
-        prev.map((jo) =>
+      setJobOrders((prev) => {
+        const updated = prev.map((jo) =>
           jo.id === jobOrderId
             ? {
                 ...jo,
@@ -487,10 +851,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
                 updatedAt: new Date(),
               }
             : jo
-        )
-      );
-
-      console.log('Job order rejected:', { jobOrderId, reason });
+        );
+        // Save to localStorage
+        localStorage.setItem('jobOrders', JSON.stringify(updated));
+        console.log('❌ Job order rejected:', { jobOrderId, reason });
+        // Dispatch event
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('jobOrdersUpdated'));
+          console.log('📢 jobOrdersUpdated event dispatched after rejection');
+        }, 0);
+        return updated;
+      });
       return true;
     } catch (error) {
       console.error('Error rejecting job order:', error);
@@ -501,19 +872,28 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // Request Revision
   const requestRevision = (jobOrderId: string, comments: string): boolean => {
     try {
-      setJobOrders((prev) =>
-        prev.map((jo) =>
+      setJobOrders((prev) => {
+        const updated = prev.map((jo) =>
           jo.id === jobOrderId
             ? {
                 ...jo,
-                status: 'Pending',
+                status: 'In Progress', // Changed from Completed to In Progress for revision
+                revisionComments: comments, // Store revision comments
+                revisionRequestedAt: new Date(),
                 updatedAt: new Date(),
               }
             : jo
-        )
-      );
-
-      console.log('Revision requested:', { jobOrderId, comments });
+        );
+        // Save to localStorage
+        localStorage.setItem('jobOrders', JSON.stringify(updated));
+        console.log('🔄 Revision requested:', { jobOrderId, comments });
+        // Dispatch event
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('jobOrdersUpdated'));
+          console.log('📢 jobOrdersUpdated event dispatched after revision request');
+        }, 0);
+        return updated;
+      });
       return true;
     } catch (error) {
       console.error('Error requesting revision:', error);
@@ -767,12 +1147,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     ndtReports,
     users,
     currentUser,
+    notifications,
     setCurrentUser,
     setUsers,
+    markNotificationAsRead,
     verifyCertificate,
     renewCertificate,
     createJobOrder,
     updateJobOrder,
+    assignJobOrder,
     submitJobOrderReport,
     approveJobOrder,
     rejectJobOrder,
@@ -790,6 +1173,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     trainingSessions,
     users,
     currentUser,
+    notifications,
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

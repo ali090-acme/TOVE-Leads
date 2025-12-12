@@ -117,6 +117,15 @@ export const CPDVideoPlayer: React.FC = () => {
     hours: 0,
   };
 
+  // Format hours display
+  const formatHours = (hours: number): string => {
+    if (hours < 1) {
+      const minutes = Math.round(hours * 60);
+      return `${minutes} min`;
+    }
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  };
+
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
     // Simulate video progress
@@ -137,6 +146,10 @@ export const CPDVideoPlayer: React.FC = () => {
     setWatched(true);
     setProgress(100);
     localStorage.setItem(`cpd-video-${categoryId}-${videoId}`, 'completed');
+    // Dispatch event to notify other components
+    window.dispatchEvent(new CustomEvent('cpdVideoCompleted', { 
+      detail: { categoryId, videoId } 
+    }));
   };
 
   return (
@@ -182,17 +195,37 @@ export const CPDVideoPlayer: React.FC = () => {
             </Typography>
           </Box>
           {watched && (
-            <Chip
-              icon={<CheckIcon />}
-              label="Completed"
+            <Box
               sx={{
                 position: 'absolute',
                 top: 16,
                 right: 16,
-                bgcolor: 'success.main',
+                bgcolor: '#1e3c72',
                 color: 'white',
+                px: 2,
+                py: 0.75,
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                zIndex: 10,
               }}
-            />
+            >
+              <CheckIcon sx={{ fontSize: 16 }} />
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.8125rem',
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Completed
+              </Typography>
+            </Box>
           )}
         </Box>
 
@@ -237,49 +270,113 @@ export const CPDVideoPlayer: React.FC = () => {
       </Card>
 
       {/* Video Information Card */}
-      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden', mb: 3 }}>
-        <CardContent sx={{ p: 3 }}>
+      <Card 
+        elevation={0} 
+        sx={{ 
+          borderRadius: 4, 
+          overflow: 'hidden', 
+          mb: 3,
+          border: '1px solid',
+          borderColor: 'divider',
+          background: 'white',
+        }}
+      >
+        <CardContent sx={{ p: 4 }}>
           {/* Info Header */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
             <Chip
               label={videoData.category}
-              size="small"
               sx={{
-                bgcolor: 'primary.light',
-                color: 'primary.main',
-                fontWeight: 600,
+                bgcolor: '#1e3c72',
+                color: 'white',
+                fontWeight: 700,
+                fontSize: '0.8125rem',
+                height: 32,
+                px: 1,
               }}
             />
             <Chip
-              icon={<ScheduleIcon />}
-              label={`${videoData.hours} hrs`}
-              size="small"
+              icon={<ScheduleIcon sx={{ color: '#1e3c72 !important' }} />}
+              label={formatHours(videoData.hours)}
               sx={{
-                bgcolor: 'grey.100',
-                color: 'primary.main',
+                bgcolor: '#f0f7ff',
+                color: '#1e3c72',
                 fontWeight: 600,
+                fontSize: '0.875rem',
+                height: 32,
+                border: '1px solid #e3f2fd',
               }}
             />
           </Box>
 
-          <Typography variant="h5" fontWeight={600} gutterBottom>
+          <Typography 
+            variant="h4" 
+            fontWeight={700} 
+            gutterBottom
+            sx={{ 
+              mb: 2,
+              color: '#2c3e50',
+              lineHeight: 1.3,
+            }}
+          >
             {videoData.title}
           </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
+          <Typography 
+            variant="body1" 
+            color="text.secondary" 
+            paragraph
+            sx={{ 
+              fontSize: '1rem',
+              lineHeight: 1.7,
+              mb: 3,
+              color: '#5a6c7d',
+            }}
+          >
             {videoData.description}
           </Typography>
 
           {/* Video Meta */}
-          <Box sx={{ display: 'flex', gap: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <VideoIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="caption" color="text.secondary">
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              gap: 4, 
+              pt: 3, 
+              borderTop: '2px solid', 
+              borderColor: 'divider',
+              flexWrap: 'wrap',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box
+                sx={{
+                  p: 1,
+                  borderRadius: 1.5,
+                  bgcolor: '#f0f7ff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <VideoIcon sx={{ fontSize: 18, color: '#1e3c72' }} />
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#2c3e50' }}>
                 Training Video
               </Typography>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <ScheduleIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="caption" color="text.secondary">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box
+                sx={{
+                  p: 1,
+                  borderRadius: 1.5,
+                  bgcolor: '#f0f7ff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ScheduleIcon sx={{ fontSize: 18, color: '#1e3c72' }} />
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#2c3e50' }}>
                 {videoData.duration}
               </Typography>
             </Box>
@@ -288,47 +385,106 @@ export const CPDVideoPlayer: React.FC = () => {
       </Card>
 
       {/* Completion Section */}
-      <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-            <CheckIcon
-              sx={{
-                fontSize: 24,
-                color: watched ? 'success.main' : 'text.secondary',
-                mt: 0.5,
-              }}
-            />
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                {watched ? 'Video Completed' : 'Mark as Complete'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {watched
-                  ? `You've earned ${videoData.hours} CPD hours`
-                  : 'Mark this video as watched to earn CPD hours'}
-              </Typography>
+      {watched ? (
+        <Card 
+          elevation={0}
+          sx={{ 
+            borderRadius: 4, 
+            overflow: 'hidden',
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            mb: 3,
+          }}
+        >
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <CheckIcon sx={{ fontSize: 28, color: 'white' }} />
+              </Box>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="h5" fontWeight={700} gutterBottom sx={{ color: 'white' }}>
+                  Video Completed!
+                </Typography>
+                <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.95)', lineHeight: 1.6 }}>
+                  You've earned <strong>{formatHours(videoData.hours)}</strong> of CPD credit.
+                </Typography>
+              </Box>
             </Box>
-          </Box>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card 
+          elevation={0}
+          sx={{ 
+            borderRadius: 4, 
+            overflow: 'hidden',
+            border: '2px solid',
+            borderColor: '#1e3c72',
+            mb: 3,
+            bgcolor: '#f0f7ff',
+          }}
+        >
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2.5, mb: 3 }}>
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  bgcolor: '#1e3c72',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <CheckIcon sx={{ fontSize: 24, color: 'white' }} />
+              </Box>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="h6" fontWeight={700} gutterBottom sx={{ color: '#1e3c72', mb: 1 }}>
+                  Mark as Complete
+                </Typography>
+                <Typography variant="body1" sx={{ color: '#5a6c7d', lineHeight: 1.6 }}>
+                  Mark this video as watched to earn {formatHours(videoData.hours)} of CPD credit.
+                </Typography>
+              </Box>
+            </Box>
 
-          {!watched && (
             <Button
               variant="contained"
               startIcon={<CheckIcon />}
               onClick={handleMarkComplete}
               fullWidth
+              size="large"
               sx={{
-                background: 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                color: 'white',
+                fontWeight: 700,
+                fontSize: '1rem',
+                textTransform: 'none',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #218838 0%, #1e7e34 100%)',
+                  background: 'linear-gradient(135deg, #2a5298 0%, #3d6bb3 100%)',
+                  boxShadow: '0 6px 20px rgba(30, 60, 114, 0.4)',
+                  transform: 'translateY(-2px)',
                 },
-                py: 1.5,
+                py: 1.75,
+                borderRadius: 2,
+                transition: 'all 0.2s ease',
               }}
             >
               Mark as Complete
             </Button>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Related Videos Section */}
       <Box sx={{ mt: 4 }}>

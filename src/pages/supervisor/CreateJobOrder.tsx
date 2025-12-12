@@ -18,11 +18,16 @@ import {
   Checkbox,
   ListItemText,
   Divider,
+  FormControlLabel,
+  IconButton,
+  CircularProgress,
+  Snackbar,
 } from '@mui/material';
-import { Send as SendIcon, Cancel as CancelIcon, Person as PersonIcon } from '@mui/icons-material';
+import { Send as SendIcon, Cancel as CancelIcon, Person as PersonIcon, Save as SaveIcon, Delete as DeleteIcon, CloudUpload as CloudUploadIcon, Inventory as InventoryIcon, MyLocation as MyLocationIcon, LocationOn as LocationOnIcon } from '@mui/icons-material';
 import { useAppContext } from '@/context/AppContext';
 import { JobOrder, ServiceType, Client } from '@/types';
 import { format } from 'date-fns';
+import { fileToBase64 } from '@/utils/offlineQueue';
 
 export const CreateJobOrder: React.FC = () => {
   const navigate = useNavigate();
@@ -40,6 +45,17 @@ export const CreateJobOrder: React.FC = () => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  
+  // Priority 1: Save as Draft, Attachments, Share with Client
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [shareWithClient, setShareWithClient] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' });
+  
+  // Location Detection
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string>('');
+  const [detectedCoordinates, setDetectedCoordinates] = useState<{ lat: number; lng: number } | null>(null);
 
   // Get all system users (for assignment)
   // TODO: When DB/backend is implemented, replace this with API call:
@@ -95,6 +111,205 @@ export const CreateJobOrder: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Priority 1: Handle attachments upload
+  const handleAttachmentsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const fileArray = Array.from(files);
+      // Limit to 10 files max
+      if (attachments.length + fileArray.length > 10) {
+        setSnackbar({
+          open: true,
+          message: 'Maximum 10 attachments allowed',
+          severity: 'error',
+        });
+        return;
+      }
+      // Check file size (max 10MB per file)
+      const oversizedFiles = fileArray.filter(f => f.size > 10 * 1024 * 1024);
+      if (oversizedFiles.length > 0) {
+        setSnackbar({
+          open: true,
+          message: `Some files exceed 10MB limit: ${oversizedFiles.map(f => f.name).join(', ')}`,
+          severity: 'error',
+        });
+        return;
+      }
+      setAttachments([...attachments, ...fileArray]);
+    }
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(attachments.filter((_, i) => i !== index));
+  };
+
+  // Priority 1: Save as Draft
+  const handleSaveDraft = async () => {
+    setIsSavingDraft(true);
+    
+    try {
+      // Convert attachments to base64
+      const attachmentBase64s: string[] = [];
+      for (const file of attachments) {
+        const base64 = await fileToBase64(file);
+        attachmentBase64s.push(base64);
+      }
+
+      // Prepare draft data
+      const draftData = {
+        formData,
+        attachments: attachmentBase64s,
+        attachmentNames: attachments.map(f => f.name),
+        shareWithClient,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Save to localStorage
+      const draftKey = `supervisor-job-order-draft-${currentUser?.id || 'default'}`;
+      localStorage.setItem(draftKey, JSON.stringify(draftData));
+
+      setIsSavingDraft(false);
+      setSnackbar({
+        open: true,
+        message: 'Draft saved successfully! You can continue editing later.',
+        severity: 'success',
+      });
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      setIsSavingDraft(false);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save draft. Please try again.',
+        severity: 'error',
+      });
+    }
+  };
+
+  // Priority 1: Load draft on mount
+  React.useEffect(() => {
+    const draftKey = `supervisor-job-order-draft-${currentUser?.id || 'default'}`;
+    const savedDraft = localStorage.getItem(draftKey);
+    
+    if (savedDraft) {
+      try {
+        const draftData = JSON.parse(savedDraft);
+        setFormData(draftData.formData || formData);
+        setShareWithClient(draftData.shareWithClient || false);
+        
+        // Note: We can't restore File objects from base64, so we'll just show a message
+        if (draftData.attachments && draftData.attachments.length > 0) {
+          setSnackbar({
+            open: true,
+            message: `Draft loaded. ${draftData.attachmentNames?.length || 0} attachment(s) were saved. Please re-upload attachments if needed.`,
+            severity: 'info',
+          });
+        } else {
+          setSnackbar({
+            open: true,
+            message: 'Draft loaded successfully!',
+            severity: 'info',
+          });
+        }
+      } catch (error) {
+        console.error('Error loading draft:', error);
+      }
+    }
+  }, [currentUser?.id]);
+
+  // Location Detection Function
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser. Please enter location manually.');
+      setSnackbar({
+        open: true,
+        message: 'Geolocation is not supported by your browser.',
+        severity: 'error',
+      });
+      return;
+    }
+
+    setIsDetectingLocation(true);
+    setLocationError('');
+    setDetectedCoordinates(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setDetectedCoordinates({ lat: latitude, lng: longitude });
+
+        try {
+          // Reverse geocoding to get address from coordinates
+          // Using OpenStreetMap Nominatim API (free, no API key needed)
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+          );
+          const data = await response.json();
+          
+          if (data && data.display_name) {
+            const address = data.display_name;
+            handleChange('location', address);
+            setSnackbar({
+              open: true,
+              message: `Location detected: ${address}`,
+              severity: 'success',
+            });
+          } else {
+            // Fallback to coordinates if address not found
+            const coordString = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+            handleChange('location', coordString);
+            setSnackbar({
+              open: true,
+              message: `Location detected: ${coordString}. You can edit the address if needed.`,
+              severity: 'success',
+            });
+          }
+        } catch (error) {
+          // Fallback to coordinates if reverse geocoding fails
+          const coordString = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          handleChange('location', coordString);
+          setSnackbar({
+            open: true,
+            message: `Location coordinates detected: ${coordString}. You can edit the address if needed.`,
+            severity: 'success',
+          });
+        }
+
+        setIsDetectingLocation(false);
+      },
+      (error) => {
+        setIsDetectingLocation(false);
+        let errorMessage = 'Failed to detect location. ';
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage += 'Location permission denied. Please enable location access in your browser settings.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location information unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage += 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage += 'An unknown error occurred.';
+            break;
+        }
+        
+        setLocationError(errorMessage);
+        setSnackbar({
+          open: true,
+          message: errorMessage,
+          severity: 'error',
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -136,6 +351,13 @@ export const CreateJobOrder: React.FC = () => {
       const assignedTo = firstSelectedUser?.id;
       const assignedToName = firstSelectedUser?.name;
 
+      // Convert attachments to base64 for storage
+      const attachmentBase64s: string[] = [];
+      for (const file of attachments) {
+        const base64 = await fileToBase64(file);
+        attachmentBase64s.push(base64);
+      }
+
       const jobOrderData: Omit<JobOrder, 'id' | 'createdAt' | 'updatedAt'> = {
         clientId: formData.clientId,
         clientName: selectedClient.name,
@@ -148,13 +370,41 @@ export const CreateJobOrder: React.FC = () => {
         status: 'In Progress', // Supervisor-created jobs don't need approval, they're auto-approved
         priority: formData.priority,
         amount: formData.amount ? parseFloat(formData.amount) : undefined,
+        // Priority 1: Add attachments and shareWithClient
+        attachments: attachmentBase64s,
+        shareWithClient: shareWithClient,
+        isDraft: false, // This is a submitted job order, not a draft
       };
 
       const newJobOrder = createJobOrder(jobOrderData);
 
       if (newJobOrder) {
-        alert('Job order created and assigned successfully!');
+        // Clear draft after successful submission
+        const draftKey = `supervisor-job-order-draft-${currentUser?.id || 'default'}`;
+        localStorage.removeItem(draftKey);
+        
+        // Reset form
+        setFormData({
+          clientId: '',
+          serviceTypes: [],
+          dateTime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+          location: '',
+          assignedUserIds: [],
+          priority: 'Medium',
+          amount: '',
+        });
+        setAttachments([]);
+        setShareWithClient(false);
+        
+        setSnackbar({
+          open: true,
+          message: 'Job order created and assigned successfully!',
+          severity: 'success',
+        });
+        
+        setTimeout(() => {
         navigate('/supervisor');
+        }, 1500);
       } else {
         throw new Error('Failed to create job order');
       }
@@ -374,6 +624,100 @@ export const CreateJobOrder: React.FC = () => {
                 </Grid>
               )}
 
+              {/* Priority 1: Attachments Field */}
+              <Grid item xs={12}>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="h6" fontWeight={600} gutterBottom>
+                  Attachments (Optional)
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Upload supporting documents, photos, or other files related to this job order (Optional - Max 10 files, 10MB each)
+                </Typography>
+                <Box>
+                  <input
+                    accept="*/*"
+                    style={{ display: 'none' }}
+                    id="attachments-upload"
+                    type="file"
+                    multiple
+                    onChange={handleAttachmentsChange}
+                  />
+                  <label htmlFor="attachments-upload">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<CloudUploadIcon />}
+                      sx={{ mb: 2 }}
+                    >
+                      Upload Attachments
+                    </Button>
+                  </label>
+                  {attachments.length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      {attachments.map((file, index) => (
+                        <Box
+                          key={index}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1.5,
+                            mb: 1,
+                            bgcolor: 'grey.50',
+                            borderRadius: 1,
+                            border: '1px solid',
+                            borderColor: 'grey.300',
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <InventoryIcon color="action" />
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                {file.name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {(file.size / 1024).toFixed(2)} KB
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleRemoveAttachment(index)}
+                            color="error"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              </Grid>
+
+              {/* Priority 1: Share with Client Checkbox */}
+              <Grid item xs={12}>
+                <Divider sx={{ my: 2 }} />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={shareWithClient}
+                      onChange={(e) => setShareWithClient(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body1" fontWeight={500}>
+                        Share data with client
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        When checked, the client will be able to view this job order details and progress
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Grid>
+
               {/* Submit Buttons */}
               <Grid item xs={12}>
                 <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
@@ -381,15 +725,25 @@ export const CreateJobOrder: React.FC = () => {
                     variant="outlined"
                     startIcon={<CancelIcon />}
                     onClick={() => navigate('/supervisor')}
-                    disabled={loading}
+                    disabled={loading || isSavingDraft}
                   >
                     Cancel
+                  </Button>
+                  {/* Priority 1: Save as Draft Button */}
+                  <Button
+                    variant="outlined"
+                    startIcon={isSavingDraft ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+                    onClick={handleSaveDraft}
+                    disabled={loading || isSavingDraft}
+                    sx={{ px: 3 }}
+                  >
+                    {isSavingDraft ? 'Saving...' : 'Save as Draft'}
                   </Button>
                   <Button
                     type="submit"
                     variant="contained"
-                    startIcon={<SendIcon />}
-                    disabled={loading}
+                    startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                    disabled={loading || isSavingDraft}
                     sx={{
                       px: 4,
                       background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
@@ -406,6 +760,22 @@ export const CreateJobOrder: React.FC = () => {
           </form>
         </CardContent>
       </Card>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

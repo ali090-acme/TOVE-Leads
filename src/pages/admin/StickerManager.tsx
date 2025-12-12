@@ -178,6 +178,48 @@ export const StickerManager: React.FC = () => {
     };
   }, []);
 
+  // Sync lot data with actual stock items to ensure consistency
+  const syncLotsWithStock = (lotsData: StickerLot[], stockData: StickerStock[]): StickerLot[] => {
+    return lotsData.map((lot) => {
+      // Find all stock items for this lot
+      const lotStockItems = stockData.filter((s) => s.lotId === lot.id);
+      
+      // Calculate actual issued quantity from stock items
+      const actualIssuedQuantity = lotStockItems.reduce((sum, s) => sum + s.quantity, 0);
+      
+      // Find maximum sequence number used from stock items
+      let maxSequenceUsed = lot.startSequence - 1; // Default to startSequence - 1
+      
+      lotStockItems.forEach((stockItem) => {
+        if (stockItem.sequenceNumbers && stockItem.sequenceNumbers.length > 0) {
+          stockItem.sequenceNumbers.forEach((seqStr) => {
+            const seqNum = parseInt(seqStr.replace(/\D/g, ''), 10);
+            if (!isNaN(seqNum) && seqNum >= 10000 && seqNum <= 99999 && seqNum > maxSequenceUsed) {
+              maxSequenceUsed = seqNum;
+            }
+          });
+        }
+      });
+      
+      // Calculate next available sequence (maxSequenceUsed + 1)
+      const syncedCurrentSequence = maxSequenceUsed + 1;
+      
+      // Ensure currentSequence doesn't exceed endSequence
+      const finalCurrentSequence = Math.min(syncedCurrentSequence, lot.endSequence + 1);
+      
+      // Calculate available quantity
+      const syncedAvailableQuantity = Math.max(0, lot.quantity - actualIssuedQuantity);
+      
+      return {
+        ...lot,
+        issuedQuantity: actualIssuedQuantity,
+        availableQuantity: syncedAvailableQuantity,
+        currentSequence: finalCurrentSequence,
+        status: syncedAvailableQuantity === 0 ? 'Depleted' : lot.status === 'Depleted' && syncedAvailableQuantity > 0 ? 'Active' : lot.status,
+      };
+    });
+  };
+
   const loadData = () => {
     // Load from localStorage
     const storedLots = localStorage.getItem(STORAGE_KEY_LOTS);
@@ -185,16 +227,16 @@ export const StickerManager: React.FC = () => {
     const storedTransfers = localStorage.getItem(STORAGE_KEY_TRANSFERS);
     const storedRequests = localStorage.getItem(STORAGE_KEY_REQUESTS);
 
+    let parsedLots: StickerLot[] = [];
     if (storedLots) {
-      const parsed = JSON.parse(storedLots);
-      setLots(parsed.map((lot: any) => ({
+      parsedLots = JSON.parse(storedLots).map((lot: any) => ({
         ...lot,
         createdAt: new Date(lot.createdAt),
         // Add default sequence numbers for old lots that don't have them
         startSequence: lot.startSequence ?? 0,
         endSequence: lot.endSequence ?? (lot.startSequence ? lot.startSequence + lot.quantity - 1 : lot.quantity - 1),
         currentSequence: lot.currentSequence ?? lot.startSequence ?? 0,
-      })));
+      }));
     } else {
       // Mock initial data
       const mockLots: StickerLot[] = [
@@ -222,24 +264,33 @@ export const StickerManager: React.FC = () => {
           status: 'Active',
           createdAt: new Date('2025-01-05'),
           createdBy: 'admin',
-          startSequence: 200000, // 6-digit format
-          endSequence: 200499,
-          currentSequence: 200200, // Next available sequence
+          startSequence: 10000, // 5-digit format
+          endSequence: 10499,
+          currentSequence: 10200, // Next available sequence
         },
       ];
       setLots(mockLots);
       localStorage.setItem(STORAGE_KEY_LOTS, JSON.stringify(mockLots));
     }
 
+    let parsedStock: StickerStock[] = [];
     if (storedStock) {
-      const parsed = JSON.parse(storedStock);
-      setStock(parsed.map((s: any) => ({
+      parsedStock = JSON.parse(storedStock).map((s: any) => ({
         ...s,
         issuedDate: new Date(s.issuedDate),
         // Ensure sequenceNumbers array exists (for old stock items)
         // Only set empty array if sequenceNumbers doesn't exist, don't override if it's already there
         sequenceNumbers: s.sequenceNumbers !== undefined ? s.sequenceNumbers : [],
-      })));
+      }));
+      setStock(parsedStock);
+    }
+
+    // Sync lots with actual stock data to ensure consistency
+    if (parsedLots.length > 0) {
+      const syncedLots = syncLotsWithStock(parsedLots, parsedStock);
+      setLots(syncedLots);
+      // Save synced lots back to localStorage to persist the sync
+      localStorage.setItem(STORAGE_KEY_LOTS, JSON.stringify(syncedLots));
     }
 
     if (storedTransfers) {
@@ -286,37 +337,157 @@ export const StickerManager: React.FC = () => {
     localStorage.removeItem(dummyKey);
   };
 
-  // Helper function to format sequence number (5-digit or 6-digit based on value)
+  // Helper function to format sequence number (always 5-digit)
   const formatSequenceNumber = (num: number | undefined | null): string => {
     if (num === undefined || num === null || isNaN(num)) {
       return 'N/A';
     }
-    // If number is less than 100000, format as 5-digit (like 82812)
-    // Otherwise format as 6-digit (like 100000)
-    if (num < 100000) {
-      return num.toString().padStart(5, '0');
+    // Always format as 5-digit (10000-99999)
+    return num.toString().padStart(5, '0');
+  };
+
+  // Get the last used sequence number for a specific sticker size
+  const getLastUsedSequenceForSize = (size: string): number => {
+    let maxSequence = 9999; // Default starting point (will start from 10000)
+
+    // FIRST: Check all stock items for this size - find max sequence number (actual issued sequences)
+    // This is the most accurate source as it shows what was actually issued
+    const stockForSize = stock.filter((s) => s.size === size);
+    stockForSize.forEach((s) => {
+      if (s.sequenceNumbers && s.sequenceNumbers.length > 0) {
+        s.sequenceNumbers.forEach((seqStr) => {
+          const seqNum = parseInt(seqStr.replace(/\D/g, ''), 10);
+          // Only consider 5-digit sequences (10000-99999)
+          if (!isNaN(seqNum) && seqNum >= 10000 && seqNum <= 99999 && seqNum > maxSequence) {
+            maxSequence = seqNum;
+          }
+        });
+      }
+    });
+
+    // SECOND: Check sticker usage tracking for this size (allocated/used stickers)
+    try {
+      const stickerUsage = localStorage.getItem('sticker-usage-tracking');
+      if (stickerUsage) {
+        const usage: any[] = JSON.parse(stickerUsage);
+        usage.forEach((u) => {
+          if (u.stickerNumber) {
+            const seqNum = parseInt(u.stickerNumber.replace(/\D/g, ''), 10);
+            // Only consider 5-digit sequences (10000-99999)
+            if (!isNaN(seqNum) && seqNum >= 10000 && seqNum <= 99999 && seqNum > maxSequence) {
+              // Need to check if this sticker belongs to the right size
+              // Find the stock item to get size
+              const stockItem = stock.find((s) => s.id === u.stickerStockId);
+              if (stockItem && stockItem.size === size && seqNum > maxSequence) {
+                maxSequence = seqNum;
+              }
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error checking sticker usage:', error);
     }
-    return num.toString().padStart(6, '0');
+
+    // THIRD: Check lots' currentSequence (next available = last used + 1)
+    // Only use this if no stock items found (fallback)
+    const lotsForSize = lots.filter((lot) => lot.size === size);
+    lotsForSize.forEach((lot) => {
+      // Only consider 5-digit sequences (10000-99999)
+      // currentSequence is the next available, so last used is currentSequence - 1
+      if (lot.currentSequence && lot.currentSequence >= 10000 && lot.currentSequence <= 99999) {
+        const lastUsedFromLot = lot.currentSequence - 1;
+        if (lastUsedFromLot > maxSequence) {
+          maxSequence = lastUsedFromLot;
+        }
+      }
+    });
+
+    return maxSequence;
+  };
+
+  // Get next available sequence number for a sticker size (checking both stock items AND existing lots)
+  const getNextSequenceForSize = (size: string): number => {
+    // First, get last used sequence from stock items
+    const lastUsedFromStock = getLastUsedSequenceForSize(size);
+    
+    // Second, check all existing lots for this size to find the maximum endSequence
+    // This ensures we don't create overlapping lots
+    let maxEndSequence = 9999; // Default starting point
+    
+    const lotsForSize = lots.filter((lot) => lot.size === size);
+    lotsForSize.forEach((lot) => {
+      // Check endSequence of existing lots (only 5-digit sequences)
+      if (lot.endSequence && lot.endSequence >= 10000 && lot.endSequence <= 99999 && lot.endSequence > maxEndSequence) {
+        maxEndSequence = lot.endSequence;
+      }
+    });
+    
+    // Use the maximum of: lastUsedFromStock OR maxEndSequence from existing lots
+    const lastUsed = Math.max(lastUsedFromStock, maxEndSequence);
+    
+    // Return next sequence (lastUsed + 1), but ensure it's at least 10000 and max 99999 (5-digit)
+    const nextSeq = Math.max(10000, lastUsed + 1);
+    // Ensure it doesn't exceed 5-digit limit
+    return Math.min(99999, nextSeq);
   };
 
   const handleCreateLot = () => {
-    if (!newLot.lotNumber || !newLot.size || newLot.quantity <= 0 || !newLot.startSequence) {
+    if (!newLot.lotNumber || !newLot.size || newLot.quantity <= 0) {
       setSnackbar({ open: true, message: 'Please fill all fields correctly', severity: 'error' });
       return;
     }
 
-    const startSeq = parseInt(newLot.startSequence);
-    // Allow 5-digit (10000-99999) or 6-digit (100000-999999) numbers
-    if (isNaN(startSeq) || startSeq < 10000 || startSeq > 999999) {
-      setSnackbar({ open: true, message: 'Start sequence must be a 5-digit (10000-99999) or 6-digit (100000-999999) number', severity: 'error' });
+    // Auto-generate start sequence if not provided
+    let startSeq: number;
+    if (newLot.startSequence) {
+      startSeq = parseInt(newLot.startSequence);
+    } else {
+      // Auto-generate based on last used sequence for this size
+      startSeq = getNextSequenceForSize(newLot.size);
+    }
+
+    // Only allow 5-digit numbers (10000-99999)
+    if (isNaN(startSeq) || startSeq < 10000 || startSeq > 99999) {
+      setSnackbar({ open: true, message: 'Start sequence must be a 5-digit number (10000-99999)', severity: 'error' });
       return;
     }
 
     const endSeq = startSeq + newLot.quantity - 1;
-    // Check limit based on starting digit count
-    const maxLimit = startSeq < 100000 ? 99999 : 999999;
+    // Check limit for 5-digit numbers
+    const maxLimit = 99999;
     if (endSeq > maxLimit) {
-      setSnackbar({ open: true, message: `Sequence range exceeds limit. Maximum allowed: ${maxLimit}. Please reduce quantity or change start sequence.`, severity: 'error' });
+      setSnackbar({ open: true, message: `Sequence range exceeds limit. Maximum allowed: ${maxLimit}. Please reduce quantity.`, severity: 'error' });
+      return;
+    }
+
+    // Check for overlap with existing lots of the same size
+    const lotsForSize = lots.filter((lot) => lot.size === newLot.size);
+    const hasOverlap = lotsForSize.some((lot) => {
+      // Check if new lot's range overlaps with existing lot's range
+      const existingStart = lot.startSequence;
+      const existingEnd = lot.endSequence;
+      
+      // Overlap occurs if:
+      // - New start is within existing range: existingStart <= startSeq <= existingEnd
+      // - New end is within existing range: existingStart <= endSeq <= existingEnd
+      // - New range completely contains existing range: startSeq <= existingStart && endSeq >= existingEnd
+      return (
+        (startSeq >= existingStart && startSeq <= existingEnd) ||
+        (endSeq >= existingStart && endSeq <= existingEnd) ||
+        (startSeq <= existingStart && endSeq >= existingEnd)
+      );
+    });
+
+    if (hasOverlap) {
+      const suggestedStart = getNextSequenceForSize(newLot.size);
+      setSnackbar({ 
+        open: true, 
+        message: `Sequence range ${formatSequenceNumber(startSeq)} - ${formatSequenceNumber(endSeq)} overlaps with an existing lot. Suggested next available: ${formatSequenceNumber(suggestedStart)}`, 
+        severity: 'error' 
+      });
+      // Auto-update the start sequence field with suggested value
+      setNewLot({ ...newLot, startSequence: suggestedStart.toString() });
       return;
     }
 
@@ -353,6 +524,12 @@ export const StickerManager: React.FC = () => {
     setSnackbar({ open: true, message: `Sticker lot created successfully. Sequence range: ${formatSequenceNumber(startSeq)} - ${formatSequenceNumber(endSeq)}`, severity: 'success' });
     setLotDialogOpen(false);
     setNewLot({ lotNumber: '', size: '', quantity: 0, startSequence: '' });
+  };
+
+  // Handle size change - auto-populate start sequence
+  const handleSizeChange = (size: string) => {
+    const nextSequence = getNextSequenceForSize(size);
+    setNewLot({ ...newLot, size, startSequence: nextSequence.toString() });
   };
 
   const handleIssueStock = () => {
@@ -1116,7 +1293,15 @@ export const StickerManager: React.FC = () => {
       )}
 
       {/* Create Lot Dialog */}
-      <Dialog open={lotDialogOpen} onClose={() => setLotDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={lotDialogOpen} 
+        onClose={() => {
+          setLotDialogOpen(false);
+          setNewLot({ lotNumber: '', size: '', quantity: 0, startSequence: '' });
+        }} 
+        maxWidth="sm" 
+        fullWidth
+      >
         <DialogTitle>Create New Sticker Lot</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
@@ -1135,7 +1320,7 @@ export const StickerManager: React.FC = () => {
                 <Select
                   value={newLot.size}
                   label="Size"
-                  onChange={(e) => setNewLot({ ...newLot, size: e.target.value })}
+                  onChange={(e) => handleSizeChange(e.target.value)}
                 >
                   <MenuItem value="Large">Large</MenuItem>
                   <MenuItem value="Small">Small</MenuItem>
@@ -1154,12 +1339,20 @@ export const StickerManager: React.FC = () => {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Start Sequence Number"
+                label="Start Sequence Number (Auto-generated)"
                 value={newLot.startSequence}
-                onChange={(e) => setNewLot({ ...newLot, startSequence: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-                placeholder="e.g., 82812 or 100000"
-                helperText="Enter starting sequence number (5-digit: 10000-99999 or 6-digit: 100000-999999). End sequence will be calculated automatically."
-                inputProps={{ maxLength: 6 }}
+                placeholder="Auto-generated based on last used sequence"
+                helperText={newLot.size 
+                  ? `System-generated: Next available 5-digit sequence for ${newLot.size} stickers. Last used: ${formatSequenceNumber(getLastUsedSequenceForSize(newLot.size))}.`
+                  : "Select sticker size first to auto-generate sequence number"
+                }
+                inputProps={{ maxLength: 5, readOnly: true }}
+                disabled={true}
+                sx={{
+                  '& .MuiInputBase-input': {
+                    cursor: 'not-allowed',
+                  },
+                }}
               />
             </Grid>
           </Grid>
@@ -1187,12 +1380,32 @@ export const StickerManager: React.FC = () => {
                 >
                   {lots.filter((l) => l.status === 'Active' && l.availableQuantity > 0).map((lot) => (
                     <MenuItem key={lot.id} value={lot.id}>
-                      {lot.lotNumber} ({lot.availableQuantity} available)
+                      {lot.lotNumber} - {lot.size} ({lot.availableQuantity} available)
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
+            {issueData.lotId && (
+              <Grid item xs={12}>
+                <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'grey.300' }}>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Selected Sticker Size:
+                  </Typography>
+                  <Chip 
+                    label={lots.find((l) => l.id === issueData.lotId)?.size || 'N/A'} 
+                    color="primary" 
+                    size="small"
+                    sx={{ fontWeight: 600 }}
+                  />
+                  {lots.find((l) => l.id === issueData.lotId) && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                      Sequence Range: {formatSequenceNumber(lots.find((l) => l.id === issueData.lotId)!.startSequence)} - {formatSequenceNumber(lots.find((l) => l.id === issueData.lotId)!.endSequence)}
+                    </Typography>
+                  )}
+                </Box>
+              </Grid>
+            )}
             <Grid item xs={12}>
               <FormControl fullWidth>
                 <InputLabel>Assign To Type</InputLabel>

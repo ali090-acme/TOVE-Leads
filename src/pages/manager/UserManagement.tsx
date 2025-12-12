@@ -241,7 +241,8 @@ export const UserManagement: React.FC = () => {
   };
 
   const handleEditPermissions = (user: User) => {
-    setSelectedUser({ ...user });
+    const userCopy = JSON.parse(JSON.stringify(user)); // Deep copy
+    setSelectedUser(userCopy);
     setPermissionDialogOpen(true);
     setActiveTab(0);
   };
@@ -392,6 +393,8 @@ export const UserManagement: React.FC = () => {
   const handlePermissionToggle = (permission: PermissionType, enabled: boolean) => {
     if (!selectedUser) return;
 
+    console.log(`🔄 Permission toggle: ${permission} = ${enabled} (NOT SAVED YET - waiting for Submit)`);
+
     setSelectedUser({
       ...selectedUser,
       permissions: {
@@ -407,10 +410,13 @@ export const UserManagement: React.FC = () => {
   const handleSavePermissions = () => {
     if (!selectedUser) return;
 
+    console.log('✅ SAVING PERMISSIONS to localStorage:', selectedUser.permissions);
+
     const updatedUsers = users.map((u) => (u.id === selectedUser.id ? selectedUser : u));
     saveUsers(updatedUsers);
 
     if (setCurrentUser && selectedUser.id === contextUsers.find((u) => u.id === selectedUser.id)?.id) {
+      console.log('✅ Updating currentUser context');
       setCurrentUser(selectedUser);
     }
 

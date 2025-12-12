@@ -26,11 +26,18 @@ import {
   Chip,
   Checkbox,
   ListItemText,
+  IconButton,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Send as SendIcon,
   Cancel as CancelIcon,
+  Save as SaveIcon,
+  Delete as DeleteIcon,
+  CloudUpload as CloudUploadIcon,
+  Inventory as InventoryIcon,
+  LocationOn as LocationOnIcon,
+  MyLocation as MyLocationIcon,
 } from '@mui/icons-material';
 import { useAppContext } from '@/context/AppContext';
 import { JobOrder, ServiceType, Client } from '@/types';
@@ -42,7 +49,7 @@ import {
   initializeOfflineSync,
   fileToBase64,
 } from '@/utils/offlineQueue';
-import { CloudOff as CloudOffIcon, CloudDone as CloudDoneIcon, PhotoCamera as PhotoCameraIcon, Inventory as InventoryIcon } from '@mui/icons-material';
+import { CloudOff as CloudOffIcon, CloudDone as CloudDoneIcon, PhotoCamera as PhotoCameraIcon } from '@mui/icons-material';
 import { allocateStickerToJob, canAllocateSticker, getAvailableStickerQuantity, getAllStickerUsage } from '@/utils/stickerTracking';
 import { getAvailableTags, allocateTagToJob } from '@/utils/tagTracking';
 import { StickerSize } from '@/types';
@@ -69,6 +76,14 @@ export const NewJobOrder: React.FC = () => {
   
   // Check if user has permission to create job orders
   const hasPermission = canCreateJobOrder(currentUser);
+  
+  // Redirect if no permission
+  React.useEffect(() => {
+    if (currentUser && !hasPermission) {
+      alert('You do not have permission to create job orders. Redirecting to dashboard...');
+      navigate('/inspector');
+    }
+  }, [currentUser, hasPermission, navigate]);
   
   // Get all clients for dropdown (users can select any existing client)
   // Region filtering happens at job order level, not client selection level
@@ -164,6 +179,16 @@ export const NewJobOrder: React.FC = () => {
   const [selectedTagId, setSelectedTagId] = useState<string>('');
   const [availableTags, setAvailableTags] = useState<any[]>([]);
   const [regions, setRegions] = useState<any[]>([]);
+  
+  // Priority 1: Save as Draft, Attachments, Share with Client
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [shareWithClient, setShareWithClient] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  
+  // Location Detection
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string>('');
+  const [detectedCoordinates, setDetectedCoordinates] = useState<{ lat: number; lng: number } | null>(null);
 
   // Load regions for display
   React.useEffect(() => {
@@ -306,6 +331,14 @@ export const NewJobOrder: React.FC = () => {
       newErrors.stickerNumber = 'Please select a sequence number from your allocated stickers.';
     }
 
+    // Validate sticker size matches lot size
+    if (selectedStickerStockId) {
+      const selectedSticker = availableStickers.find((s) => s.id === selectedStickerStockId);
+      if (selectedSticker && selectedSticker.size && stickerSize !== selectedSticker.size) {
+        newErrors.stickerSize = `Selected lot ${selectedSticker.lotNumber} is ${selectedSticker.size} size. Size mismatch detected.`;
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -321,6 +354,219 @@ export const NewJobOrder: React.FC = () => {
       });
     }
   };
+
+  // Priority 1: Handle attachments upload
+  const handleAttachmentsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const fileArray = Array.from(files);
+      // Limit to 10 files max
+      if (attachments.length + fileArray.length > 10) {
+        setSnackbar({
+          open: true,
+          message: 'Maximum 10 attachments allowed',
+          severity: 'warning',
+        });
+        return;
+      }
+      // Check file size (max 10MB per file)
+      const oversizedFiles = fileArray.filter(f => f.size > 10 * 1024 * 1024);
+      if (oversizedFiles.length > 0) {
+        setSnackbar({
+          open: true,
+          message: `Some files exceed 10MB limit: ${oversizedFiles.map(f => f.name).join(', ')}`,
+          severity: 'warning',
+        });
+        return;
+      }
+      setAttachments([...attachments, ...fileArray]);
+    }
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(attachments.filter((_, i) => i !== index));
+  };
+
+  // Location Detection Function
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser. Please enter location manually.');
+      setSnackbar({
+        open: true,
+        message: 'Geolocation is not supported by your browser.',
+        severity: 'error',
+      });
+      return;
+    }
+
+    setIsDetectingLocation(true);
+    setLocationError('');
+    setDetectedCoordinates(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setDetectedCoordinates({ lat: latitude, lng: longitude });
+
+        try {
+          // Reverse geocoding to get address from coordinates
+          // Using OpenStreetMap Nominatim API (free, no API key needed)
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+          );
+          const data = await response.json();
+          
+          if (data && data.display_name) {
+            const address = data.display_name;
+            setFormData({ ...formData, location: address });
+            setSnackbar({
+              open: true,
+              message: `Location detected: ${address}`,
+              severity: 'success',
+            });
+          } else {
+            // Fallback to coordinates if address not found
+            const coordString = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+            setFormData({ ...formData, location: coordString });
+            setSnackbar({
+              open: true,
+              message: `Location detected: ${coordString}. You can edit the address if needed.`,
+              severity: 'success',
+            });
+          }
+        } catch (error) {
+          // Fallback to coordinates if reverse geocoding fails
+          const coordString = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          setFormData({ ...formData, location: coordString });
+          setSnackbar({
+            open: true,
+            message: `Location coordinates detected: ${coordString}. You can edit the address if needed.`,
+            severity: 'success',
+          });
+        }
+
+        setIsDetectingLocation(false);
+      },
+      (error) => {
+        setIsDetectingLocation(false);
+        let errorMessage = 'Failed to detect location. ';
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage += 'Location permission denied. Please enable location access in your browser settings.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location information unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage += 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage += 'An unknown error occurred.';
+            break;
+        }
+        
+        setLocationError(errorMessage);
+        setSnackbar({
+          open: true,
+          message: errorMessage,
+          severity: 'error',
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
+
+  // Priority 1: Save as Draft
+  const handleSaveDraft = async () => {
+    setIsSavingDraft(true);
+    
+    try {
+      // Convert attachments to base64
+      const attachmentBase64s: string[] = [];
+      for (const file of attachments) {
+        const base64 = await fileToBase64(file);
+        attachmentBase64s.push(base64);
+      }
+
+      // Prepare draft data
+      const draftData = {
+        formData,
+        newClientData,
+        activeTab,
+        attachments: attachmentBase64s,
+        attachmentNames: attachments.map(f => f.name),
+        shareWithClient,
+        selectedStickerStockId,
+        stickerNumber,
+        stickerSize,
+        selectedTagId,
+        stickerPhoto: stickerPhoto ? await fileToBase64(stickerPhoto) : undefined,
+        stickerPhotoName: stickerPhoto?.name,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Save to localStorage
+      const draftKey = `job-order-draft-${currentUser?.id || 'default'}`;
+      localStorage.setItem(draftKey, JSON.stringify(draftData));
+
+      setIsSavingDraft(false);
+      setSnackbar({
+        open: true,
+        message: 'Draft saved successfully! You can continue editing later.',
+        severity: 'success',
+      });
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      setIsSavingDraft(false);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save draft. Please try again.',
+        severity: 'error',
+      });
+    }
+  };
+
+  // Priority 1: Load draft on mount
+  React.useEffect(() => {
+    const draftKey = `job-order-draft-${currentUser?.id || 'default'}`;
+    const savedDraft = localStorage.getItem(draftKey);
+    
+    if (savedDraft) {
+      try {
+        const draftData = JSON.parse(savedDraft);
+        setFormData(draftData.formData || formData);
+        setNewClientData(draftData.newClientData || newClientData);
+        setActiveTab(draftData.activeTab || 0);
+        setShareWithClient(draftData.shareWithClient || false);
+        setSelectedStickerStockId(draftData.selectedStickerStockId || '');
+        setStickerNumber(draftData.stickerNumber || '');
+        setStickerSize(draftData.stickerSize || 'Large');
+        setSelectedTagId(draftData.selectedTagId || '');
+        
+        // Note: We can't restore File objects from base64, so we'll just show a message
+        if (draftData.attachments && draftData.attachments.length > 0) {
+          setSnackbar({
+            open: true,
+            message: `Draft loaded. ${draftData.attachmentNames?.length || 0} attachment(s) were saved. Please re-upload attachments if needed.`,
+            severity: 'info',
+          });
+        } else {
+          setSnackbar({
+            open: true,
+            message: 'Draft loaded successfully!',
+            severity: 'info',
+          });
+        }
+      } catch (error) {
+        console.error('Error loading draft:', error);
+      }
+    }
+  }, [currentUser?.id]);
 
   const handleSubmit = async () => {
     // Check permission first
@@ -359,11 +605,11 @@ export const NewJobOrder: React.FC = () => {
           severity: 'error',
         });
       } else {
-        setSnackbar({
-          open: true,
-          message: 'Please fix the errors in the form',
-          severity: 'error',
-        });
+      setSnackbar({
+        open: true,
+        message: 'Please fix the errors in the form',
+        severity: 'error',
+      });
       }
       return;
     }
@@ -421,6 +667,13 @@ export const NewJobOrder: React.FC = () => {
         clientName = selectedClient?.name || 'Unknown Client';
       }
 
+      // Convert attachments to base64 for storage
+      const attachmentBase64s: string[] = [];
+      for (const file of attachments) {
+        const base64 = await fileToBase64(file);
+        attachmentBase64s.push(base64);
+      }
+
       // Prepare job order data
       const jobOrderData = {
         clientId: clientId,
@@ -435,6 +688,10 @@ export const NewJobOrder: React.FC = () => {
         // Auto-assign region and team from current user (for confidentiality)
         regionId: currentUser?.regionId,
         teamId: currentUser?.teamId,
+        // Priority 1: Add attachments and shareWithClient
+        attachments: attachmentBase64s,
+        shareWithClient: shareWithClient,
+        isDraft: false, // This is a submitted job order, not a draft
       };
 
       // If offline, add to offline queue
@@ -469,6 +726,8 @@ export const NewJobOrder: React.FC = () => {
           tagAllocation,
           stickerPhoto: stickerPhotoBase64,
           stickerNumber: stickerNumber || undefined,
+          attachments: attachmentBase64s, // Priority 1: Include attachments
+          shareWithClient: shareWithClient, // Priority 1: Include shareWithClient
         });
 
         // If sticker selected, allocate it (will be synced when online)
@@ -735,9 +994,9 @@ export const NewJobOrder: React.FC = () => {
                     </MenuItem>
                   ) : (
                     availableClients.map((client) => (
-                      <MenuItem key={client.id} value={client.id}>
-                        {client.name} - {client.businessType} ({client.location})
-                      </MenuItem>
+                    <MenuItem key={client.id} value={client.id}>
+                      {client.name} - {client.businessType} ({client.location})
+                    </MenuItem>
                     ))
                   )}
                 </TextField>
@@ -1013,11 +1272,31 @@ export const NewJobOrder: React.FC = () => {
                   if (errors.location) {
                     setErrors({ ...errors, location: '' });
                   }
+                  setLocationError(''); // Clear location error when user types
                 }}
                 placeholder="Service location address"
-                error={!!errors.location}
-                helperText={errors.location}
+                error={!!errors.location || !!locationError}
+                helperText={errors.location || locationError || 'Enter address or click "Detect My Location"'}
+                InputProps={{
+                  endAdornment: (
+                    <Button
+                      size="small"
+                      startIcon={isDetectingLocation ? <CircularProgress size={16} /> : <MyLocationIcon />}
+                      onClick={handleDetectLocation}
+                      disabled={isDetectingLocation}
+                      sx={{ minWidth: 'auto', px: 1.5 }}
+                    >
+                      {isDetectingLocation ? 'Detecting...' : 'Detect'}
+                    </Button>
+                  ),
+                }}
               />
+              {detectedCoordinates && (
+                <Typography variant="caption" color="success.main" sx={{ mt: 0.5, ml: 1.75, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <LocationOnIcon fontSize="small" />
+                  Coordinates: {detectedCoordinates.lat.toFixed(6)}, {detectedCoordinates.lng.toFixed(6)}
+                </Typography>
+              )}
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -1104,6 +1383,11 @@ export const NewJobOrder: React.FC = () => {
                   {errors.stickerNumber}
                 </Alert>
               )}
+              {errors.stickerSize && (
+                <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                  {errors.stickerSize}
+                </Alert>
+              )}
               {showStickerSection && (
                 <Grid container spacing={2}>
                   {availableStickers.length === 0 ? (
@@ -1152,15 +1436,39 @@ export const NewJobOrder: React.FC = () => {
                           <Grid item xs={12} md={4}>
                             <TextField
                               fullWidth
-                              select
                               label="Sticker Size"
                               value={stickerSize}
-                              onChange={(e) => setStickerSize(e.target.value as StickerSize)}
-                            >
-                              <MenuItem value="Large">Large</MenuItem>
-                              <MenuItem value="Small">Small</MenuItem>
-                            </TextField>
+                              disabled
+                              helperText={`Lot size: ${availableStickers.find((s) => s.id === selectedStickerStockId)?.size || 'N/A'}`}
+                              sx={{
+                                '& .MuiInputBase-input': {
+                                  cursor: 'not-allowed',
+                                },
+                              }}
+                            />
                           </Grid>
+                          {(() => {
+                            const selectedSticker = availableStickers.find((s) => s.id === selectedStickerStockId);
+                            const lotSize = selectedSticker?.size || '';
+                            const sizeMismatch = lotSize && stickerSize !== lotSize;
+                            
+                            if (sizeMismatch) {
+                              return (
+                                <Grid item xs={12}>
+                                  <Alert severity="error" sx={{ borderRadius: 2 }}>
+                                    <Typography variant="body2" fontWeight={600}>
+                                      Size Mismatch Error!
+                                    </Typography>
+                                    <Typography variant="body2">
+                                      Selected lot <strong>{selectedSticker?.lotNumber}</strong> is <strong>{lotSize}</strong> size, 
+                                      but you selected <strong>{stickerSize}</strong>. Please select a lot that matches your required size.
+                                    </Typography>
+                                  </Alert>
+                                </Grid>
+                              );
+                            }
+                            return null;
+                          })()}
                           <Grid item xs={12} md={4}>
                             <TextField
                               fullWidth
@@ -1325,6 +1633,100 @@ export const NewJobOrder: React.FC = () => {
                 </Grid>
               )}
             </Grid>
+
+            {/* Priority 1: Attachments Field */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="h6" fontWeight={600} gutterBottom>
+                Attachments (Optional)
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Upload supporting documents, photos, or other files related to this job order (Optional - Max 10 files, 10MB each)
+              </Typography>
+              <Box>
+                <input
+                  accept="*/*"
+                  style={{ display: 'none' }}
+                  id="attachments-upload"
+                  type="file"
+                  multiple
+                  onChange={handleAttachmentsChange}
+                />
+                <label htmlFor="attachments-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<CloudUploadIcon />}
+                    sx={{ mb: 2 }}
+                  >
+                    Upload Attachments
+                  </Button>
+                </label>
+                {attachments.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    {attachments.map((file, index) => (
+                      <Box
+                        key={index}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          p: 1.5,
+                          mb: 1,
+                          bgcolor: 'grey.50',
+                          borderRadius: 1,
+                          border: '1px solid',
+                          borderColor: 'grey.300',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <InventoryIcon color="action" />
+                          <Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {file.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {(file.size / 1024).toFixed(2)} KB
+                            </Typography>
+                          </Box>
+                        </Box>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemoveAttachment(index)}
+                          color="error"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            </Grid>
+
+            {/* Priority 1: Share with Client Checkbox */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }} />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={shareWithClient}
+                    onChange={(e) => setShareWithClient(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body1" fontWeight={500}>
+                      Share data with client
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      When checked, the client will be able to view this job order details and progress
+                    </Typography>
+                  </Box>
+                }
+              />
+            </Grid>
           </Grid>
 
           {/* Action Buttons */}
@@ -1333,17 +1735,27 @@ export const NewJobOrder: React.FC = () => {
               variant="outlined"
               startIcon={<CancelIcon />}
               onClick={() => navigate('/inspector/jobs')}
-              disabled={loading}
+              disabled={loading || isSavingDraft}
               sx={{ px: 3 }}
             >
               Cancel
+            </Button>
+            {/* Priority 1: Save as Draft Button */}
+            <Button
+              variant="outlined"
+              startIcon={isSavingDraft ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+              onClick={handleSaveDraft}
+              disabled={loading || isSavingDraft || !hasPermission}
+              sx={{ px: 3 }}
+            >
+              {isSavingDraft ? 'Saving...' : 'Save as Draft'}
             </Button>
             <Button
               variant="contained"
               size="large"
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
               onClick={handleSubmit}
-              disabled={loading || !hasPermission || !currentUser?.regionId || (activeTab === 1 && (clientExistsError.show || !!errors.clientExists))}
+              disabled={loading || isSavingDraft || !hasPermission || !currentUser?.regionId || (activeTab === 1 && (clientExistsError.show || !!errors.clientExists))}
               sx={{
                 px: 4,
                 background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',

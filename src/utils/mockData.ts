@@ -368,6 +368,38 @@ export const mockNDTReports: NDTReport[] = [
 
 // Mock Notifications
 export const mockNotifications: Notification[] = [
+  // Client notifications (user-1)
+  {
+    id: 'notif-client-1',
+    userId: 'user-1',
+    type: 'payment',
+    title: 'Payment Confirmed',
+    message: 'Your payment for Job Order JO-2025001 has been confirmed',
+    read: false,
+    createdAt: new Date('2025-10-16T09:00:00'),
+    link: '/client/payment/history',
+  },
+  {
+    id: 'notif-client-2',
+    userId: 'user-1',
+    type: 'expiry',
+    title: 'Certificate Expiring Soon',
+    message: 'Your certificate CERT-MC-2024-001 expires in 30 days',
+    read: false,
+    createdAt: new Date('2025-10-15T14:00:00'),
+    link: '/client/renewal',
+  },
+  {
+    id: 'notif-client-3',
+    userId: 'user-1',
+    type: 'general',
+    title: 'New Service Request Approved',
+    message: 'Your service request for Inspection has been approved',
+    read: false,
+    createdAt: new Date('2025-10-14T10:00:00'),
+    link: '/client/history',
+  },
+  // Inspector notifications (user-2)
   {
     id: 'notif-1',
     userId: 'user-2',
@@ -376,8 +408,9 @@ export const mockNotifications: Notification[] = [
     message: 'You have been assigned to Job Order JO-2025001',
     read: false,
     createdAt: new Date('2025-10-15T08:00:00'),
-    link: '/inspector/job-orders/JO-2025001',
+    link: '/inspector/jobs/JO-2025001',
   },
+  // Supervisor notifications (user-4)
   {
     id: 'notif-2',
     userId: 'user-4',
@@ -388,6 +421,7 @@ export const mockNotifications: Notification[] = [
     createdAt: new Date('2025-10-16T10:30:00'),
     link: '/supervisor/approvals',
   },
+  // Accountant notifications (user-5)
   {
     id: 'notif-3',
     userId: 'user-5',

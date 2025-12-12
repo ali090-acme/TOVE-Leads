@@ -34,6 +34,9 @@ import {
   Business as BusinessIcon,
   AdminPanelSettings as RoleIcon,
   Groups as ClientsIcon,
+  Build as EquipmentIcon,
+  Engineering as OperatorIcon,
+  Science as TestIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '@/types';

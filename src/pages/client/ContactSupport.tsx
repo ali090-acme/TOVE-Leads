@@ -131,11 +131,23 @@ export const ContactSupport: React.FC = () => {
   return (
     <Box>
       {/* Page Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom fontWeight={700} sx={{ color: 'text.primary' }}>
+      <Box sx={{ mb: 5 }}>
+        <Typography 
+          variant="h4" 
+          gutterBottom 
+          fontWeight={700} 
+          sx={{ 
+            color: 'text.primary',
+            mb: 1,
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
           Contact Support
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1.0625rem' }}>
           Get help with your account, certificates, or general inquiries
         </Typography>
       </Box>
@@ -144,135 +156,233 @@ export const ContactSupport: React.FC = () => {
         {/* Left Column - Contact Methods & FAQ */}
         <Grid item xs={12} md={5}>
           {/* Contact Methods */}
-          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden', mb: 3 }}>
+          <Card 
+            elevation={0} 
+            sx={{ 
+              borderRadius: 4, 
+              overflow: 'hidden', 
+              mb: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
             <Box
               sx={{
                 background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
                 color: 'white',
-                p: 2,
+                p: 3,
               }}
             >
-              <Typography variant="h6" fontWeight={600}>
+              <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.125rem' }}>
                 Contact Us
               </Typography>
             </Box>
-            <CardContent sx={{ p: 0 }}>
-              <List>
-                <ListItem disablePadding>
-                  <ListItemButton
-                    onClick={() => handleContactClick('website')}
-                    sx={{ px: 3, py: 2 }}
-                  >
-                    <ListItemIcon>
-                      <Box
-                        sx={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 2,
-                          bgcolor: 'primary.light',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <WebsiteIcon sx={{ color: 'primary.main' }} />
-                      </Box>
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Website"
-                      secondary={contactInfo.website}
-                      secondaryTypographyProps={{ color: 'text.primary', fontWeight: 600 }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-                <ListItem disablePadding>
-                  <ListItemButton
-                    onClick={() => handleContactClick('email')}
-                    sx={{ px: 3, py: 2 }}
-                  >
-                    <ListItemIcon>
-                      <Box
-                        sx={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 2,
-                          bgcolor: 'info.light',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <EmailIcon sx={{ color: 'info.main' }} />
-                      </Box>
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Email"
-                      secondary={contactInfo.email}
-                      secondaryTypographyProps={{ color: 'text.primary', fontWeight: 600 }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-                <ListItem disablePadding>
-                  <ListItemButton
-                    onClick={() => handleContactClick('phone')}
-                    sx={{ px: 3, py: 2 }}
-                  >
-                    <ListItemIcon>
-                      <Box
-                        sx={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 2,
-                          bgcolor: 'success.light',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <PhoneIcon sx={{ color: 'success.main' }} />
-                      </Box>
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Phone"
-                      secondary={contactInfo.phone}
-                      secondaryTypographyProps={{ color: 'text.primary', fontWeight: 600 }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              </List>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Card
+                  elevation={0}
+                  onClick={() => handleContactClick('website')}
+                  sx={{
+                    p: 2.5,
+                    border: '2px solid',
+                    borderColor: 'divider',
+                    borderRadius: 3,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    bgcolor: 'white',
+                    '&:hover': {
+                      borderColor: '#1e3c72',
+                      bgcolor: '#f0f7ff',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 12px rgba(30, 60, 114, 0.15)',
+                    },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 2.5,
+                        bgcolor: '#e3f2fd',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <WebsiteIcon sx={{ fontSize: 28, color: '#1e3c72' }} />
+                    </Box>
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography variant="body1" fontWeight={700} sx={{ mb: 0.5, color: '#2c3e50' }}>
+                        Website
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#1e3c72', fontWeight: 600, wordBreak: 'break-all' }}>
+                        {contactInfo.website}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Card>
+
+                <Card
+                  elevation={0}
+                  onClick={() => handleContactClick('email')}
+                  sx={{
+                    p: 2.5,
+                    border: '2px solid',
+                    borderColor: 'divider',
+                    borderRadius: 3,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    bgcolor: 'white',
+                    '&:hover': {
+                      borderColor: '#1e3c72',
+                      bgcolor: '#f0f7ff',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 12px rgba(30, 60, 114, 0.15)',
+                    },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 2.5,
+                        bgcolor: '#e3f2fd',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <EmailIcon sx={{ fontSize: 28, color: '#1e3c72' }} />
+                    </Box>
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography variant="body1" fontWeight={700} sx={{ mb: 0.5, color: '#2c3e50' }}>
+                        Email
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#1e3c72', fontWeight: 600, wordBreak: 'break-all' }}>
+                        {contactInfo.email}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Card>
+
+                <Card
+                  elevation={0}
+                  onClick={() => handleContactClick('phone')}
+                  sx={{
+                    p: 2.5,
+                    border: '2px solid',
+                    borderColor: 'divider',
+                    borderRadius: 3,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    bgcolor: 'white',
+                    '&:hover': {
+                      borderColor: '#1e3c72',
+                      bgcolor: '#f0f7ff',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 12px rgba(30, 60, 114, 0.15)',
+                    },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 2.5,
+                        bgcolor: '#e3f2fd',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <PhoneIcon sx={{ fontSize: 28, color: '#1e3c72' }} />
+                    </Box>
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography variant="body1" fontWeight={700} sx={{ mb: 0.5, color: '#2c3e50' }}>
+                        Phone
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#1e3c72', fontWeight: 600 }}>
+                        {contactInfo.phone}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Card>
+              </Box>
             </CardContent>
           </Card>
 
           {/* FAQ Section */}
-          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+          <Card 
+            elevation={0} 
+            sx={{ 
+              borderRadius: 4, 
+              overflow: 'hidden',
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
             <Box
               sx={{
                 background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
                 color: 'white',
-                p: 2,
+                p: 3,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1,
+                gap: 1.5,
               }}
             >
-              <HelpIcon />
-              <Typography variant="h6" fontWeight={600}>
+              <Box
+                sx={{
+                  p: 1,
+                  borderRadius: 1.5,
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <HelpIcon sx={{ fontSize: 24 }} />
+              </Box>
+              <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.125rem' }}>
                 Frequently Asked Questions
               </Typography>
             </Box>
             <CardContent sx={{ p: 0 }}>
               {faqData.map((faq, index) => (
-                <Accordion key={index} elevation={0}>
+                <Accordion 
+                  key={index} 
+                  elevation={0}
+                  sx={{
+                    border: 'none',
+                    '&:before': { display: 'none' },
+                    '&.Mui-expanded': {
+                      margin: 0,
+                    },
+                  }}
+                >
                   <AccordionSummary
-                    expandIcon={<ExpandMoreIcon />}
-                    sx={{ px: 3, py: 2 }}
+                    expandIcon={<ExpandMoreIcon sx={{ color: '#1e3c72' }} />}
+                    sx={{ 
+                      px: 3, 
+                      py: 2.5,
+                      minHeight: 56,
+                      '&:hover': {
+                        bgcolor: '#f5f7fa',
+                      },
+                    }}
                   >
-                    <Typography variant="body1" fontWeight={600}>
+                    <Typography variant="body1" fontWeight={600} sx={{ color: '#2c3e50', fontSize: '0.9375rem' }}>
                       {faq.question}
                     </Typography>
                   </AccordionSummary>
-                  <AccordionDetails sx={{ px: 3, pb: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
+                  <AccordionDetails sx={{ px: 3, pb: 3, pt: 0 }}>
+                    <Typography variant="body2" sx={{ color: '#5a6c7d', lineHeight: 1.7, fontSize: '0.9375rem' }}>
                       {faq.answer}
                     </Typography>
                   </AccordionDetails>
@@ -284,29 +394,47 @@ export const ContactSupport: React.FC = () => {
 
         {/* Right Column - Support Ticket Form */}
         <Grid item xs={12} md={7}>
-          <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+          <Card 
+            elevation={0} 
+            sx={{ 
+              borderRadius: 4, 
+              overflow: 'hidden',
+              border: '1px solid',
+              borderColor: 'divider',
+              height: '100%',
+            }}
+          >
             <Box
               sx={{
                 background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
                 color: 'white',
-                p: 2,
+                p: 3,
               }}
             >
-              <Typography variant="h6" fontWeight={600}>
+              <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.125rem', mb: 0.5 }}>
                 Submit Support Ticket
               </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>
+              <Typography variant="body2" sx={{ opacity: 0.95, fontSize: '0.9375rem' }}>
                 Report app-specific issues or general inquiries
               </Typography>
             </Box>
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: 4 }}>
               <Box sx={{ mb: 3 }}>
                 <FormControl fullWidth>
-                  <InputLabel>Category</InputLabel>
+                  <InputLabel sx={{ fontWeight: 500 }}>Category</InputLabel>
                   <Select
                     value={ticketCategory}
                     onChange={(e) => setTicketCategory(e.target.value)}
                     label="Category"
+                    sx={{
+                      borderRadius: 2,
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#e0e0e0',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#1e3c72',
+                      },
+                    }}
                   >
                     {categories.map((cat) => (
                       <MenuItem key={cat} value={cat}>
@@ -317,15 +445,30 @@ export const ContactSupport: React.FC = () => {
                 </FormControl>
               </Box>
 
-              <Box sx={{ mb: 3 }}>
+              <Box sx={{ mb: 4 }}>
                 <TextField
                   fullWidth
                   label="Description"
-                  placeholder="Describe your issue or inquiry..."
+                  placeholder="Describe your issue or inquiry in detail..."
                   multiline
-                  rows={6}
+                  rows={8}
                   value={ticketDescription}
                   onChange={(e) => setTicketDescription(e.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      '& fieldset': {
+                        borderColor: '#e0e0e0',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: '#1e3c72',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#1e3c72',
+                        borderWidth: 2,
+                      },
+                    },
+                  }}
                 />
               </Box>
 
@@ -335,12 +478,27 @@ export const ContactSupport: React.FC = () => {
                 size="large"
                 startIcon={<SendIcon />}
                 onClick={handleSubmitTicket}
+                disabled={!ticketCategory || !ticketDescription.trim()}
                 sx={{
-                  py: 1.5,
+                  py: 1.75,
                   background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '1rem',
+                  textTransform: 'none',
+                  borderRadius: 2,
+                  boxShadow: '0 4px 12px rgba(30, 60, 114, 0.3)',
                   '&:hover': {
                     background: 'linear-gradient(135deg, #2a5298 0%, #3d6bb3 100%)',
+                    boxShadow: '0 6px 20px rgba(30, 60, 114, 0.4)',
+                    transform: 'translateY(-2px)',
                   },
+                  '&:disabled': {
+                    background: '#bdbdbd',
+                    color: '#757575',
+                    boxShadow: 'none',
+                  },
+                  transition: 'all 0.2s ease',
                 }}
               >
                 Submit Ticket
@@ -351,9 +509,16 @@ export const ContactSupport: React.FC = () => {
                   startIcon={<ListIcon />}
                   onClick={() => navigate('/client/support/tickets')}
                   sx={{
-                    color: 'primary.main',
+                    color: '#1e3c72',
                     textTransform: 'none',
                     fontWeight: 600,
+                    fontSize: '0.9375rem',
+                    '&:hover': {
+                      bgcolor: '#f0f7ff',
+                    },
+                    px: 2,
+                    py: 1,
+                    borderRadius: 2,
                   }}
                 >
                   View My Tickets

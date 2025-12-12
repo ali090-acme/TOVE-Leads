@@ -28,6 +28,7 @@ import { ContactSupport } from './pages/client/ContactSupport';
 import { SupportTickets } from './pages/client/SupportTickets';
 import { LegalInformation } from './pages/client/LegalInformation';
 import { PrivacyPolicy } from './pages/client/PrivacyPolicy';
+import { Notifications } from './pages/common/Notifications';
 import { CPDLibrary } from './pages/client/CPDLibrary';
 import { MyCertificates } from './pages/client/MyCertificates';
 import { DocumentManagement } from './pages/client/DocumentManagement';
@@ -91,7 +92,7 @@ function App() {
   );
 }
 
-function AppContent() {
+const AppContent = () => {
   // Get current user from context
   const { currentUser } = useAppContext();
   
@@ -103,15 +104,38 @@ function AppContent() {
   
   // Update role and roles when currentUser changes
   useEffect(() => {
-    console.log(' AppContent: currentUser changed:', currentUser?.name);
+    console.log('📊 AppContent: currentUser changed:', currentUser?.name, currentUser?.id, currentUser?.currentRole);
     if (currentUser) {
-      setCurrentRole(currentUser.currentRole || 'client');
-      setUserRoles(currentUser.roles || ['client']);
-      console.log(' AppContent: Updated role to:', currentUser.currentRole);
+      const newRole = currentUser.currentRole || 'client';
+      const newRoles = currentUser.roles || ['client'];
+      console.log('🔄 AppContent: Setting role to:', newRole, 'for user:', currentUser.name, 'ID:', currentUser.id);
+      setCurrentRole(newRole);
+      setUserRoles(newRoles);
+      console.log('✅ AppContent: Updated role to:', newRole, 'User:', currentUser.name);
     } else {
-      console.warn(' AppContent: currentUser is null');
+      console.warn('⚠️ AppContent: currentUser is null');
+      setCurrentRole('client');
+      setUserRoles(['client']);
     }
-  }, [currentUser]);
+  }, [currentUser?.id, currentUser?.currentRole, currentUser?.name]); // Depend on id, role, and name
+  
+  // Listen for currentUserUpdated event to force immediate update
+  useEffect(() => {
+    const handleCurrentUserUpdate = (event: any) => {
+      const updatedUser = event.detail;
+      console.log('🔔 AppContent: Received currentUserUpdated event:', updatedUser?.name, updatedUser?.id, updatedUser?.currentRole);
+      // Force re-read from context by triggering state update
+      if (updatedUser) {
+        setCurrentRole(updatedUser.currentRole || 'client');
+        setUserRoles(updatedUser.roles || ['client']);
+      }
+    };
+    
+    window.addEventListener('currentUserUpdated', handleCurrentUserUpdate as EventListener);
+    return () => {
+      window.removeEventListener('currentUserUpdated', handleCurrentUserUpdate as EventListener);
+    };
+  }, []);
 
   return (
     <Router>
@@ -789,6 +813,20 @@ function AppContent() {
                 onRoleChange={setCurrentRole}
               >
                 <ClientManagement />
+              </MainLayout>
+            }
+          />
+
+          {/* Notifications - Common route for all roles */}
+          <Route
+            path="/notifications"
+            element={
+              <MainLayout
+                userRole={currentRole}
+                userRoles={userRoles}
+                onRoleChange={setCurrentRole}
+              >
+                <Notifications />
               </MainLayout>
             }
           />

@@ -66,11 +66,35 @@ export const PaymentHistory: React.FC = () => {
   const getStatusChip = (status: string) => {
     switch (status) {
       case 'Confirmed':
-        return <Chip label="Completed" color="success" size="small" icon={<CheckCircleIcon />} />;
+        return (
+          <Chip
+            label="Completed"
+            size="small"
+            icon={<CheckCircleIcon />}
+            sx={{
+              bgcolor: '#1e3c72',
+              color: 'white',
+              fontWeight: 600,
+              '& .MuiChip-icon': {
+                color: 'white',
+              },
+            }}
+          />
+        );
       case 'Pending':
-        return <Chip label="Pending" color="warning" size="small" />;
+        return (
+          <Chip
+            label="Pending"
+            size="small"
+            sx={{
+              bgcolor: '#3498db',
+              color: 'white',
+              fontWeight: 600,
+            }}
+          />
+        );
       case 'Failed':
-        return <Chip label="Failed" color="error" size="small" />;
+        return <Chip label="Failed" color="error" size="small" sx={{ fontWeight: 600 }} />;
       default:
         return <Chip label={status} size="small" />;
     }

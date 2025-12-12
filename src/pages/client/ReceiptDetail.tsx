@@ -398,20 +398,33 @@ export const ReceiptDetail: React.FC = () => {
               <Chip
                 icon={<CheckCircleIcon />}
                 label="Completed"
-                color="success"
-                sx={{ px: 2, py: 3 }}
+                sx={{
+                  px: 2,
+                  py: 3,
+                  bgcolor: '#1e3c72',
+                  color: 'white',
+                  fontWeight: 600,
+                  '& .MuiChip-icon': {
+                    color: 'white',
+                  },
+                }}
               />
             ) : payment.status === 'Pending' ? (
               <Chip
                 label="Pending"
-                color="warning"
-                sx={{ px: 2, py: 3 }}
+                sx={{
+                  px: 2,
+                  py: 3,
+                  bgcolor: '#3498db',
+                  color: 'white',
+                  fontWeight: 600,
+                }}
               />
             ) : payment.status === 'Failed' ? (
               <Chip
                 label="Failed"
                 color="error"
-                sx={{ px: 2, py: 3 }}
+                sx={{ px: 2, py: 3, fontWeight: 600 }}
               />
             ) : (
               <Chip

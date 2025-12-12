@@ -20,6 +20,12 @@ import {
   Snackbar,
   CircularProgress,
   Chip,
+  Paper,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Autocomplete,
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
@@ -27,6 +33,7 @@ import {
   Delete as DeleteIcon,
   Save as SaveIcon,
   Send as SendIcon,
+  PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
@@ -35,11 +42,17 @@ import { getStatusChip } from '@/components/common/DataTable';
 import { getStickerUsageForJob, reportStickerRemovalByJob } from '@/utils/stickerTracking';
 import { getTagForJob, reportTagRemoval } from '@/utils/tagTracking';
 import { logUserAction } from '@/utils/activityLogger';
+import { SignatureCapture, SignatureData } from '@/components/common/SignatureCapture';
+import { Evidence, EvidenceType, EvidenceCategory } from '@/types';
+import { hasPermission } from '@/utils/permissions';
+import { exportReportAsPDF, getReportType } from '@/utils/reportExport';
 import {
   Warning as WarningIcon,
   Label as LabelIcon,
   Inventory as InventoryIcon,
   ReportProblem as ReportIcon,
+  Edit as EditIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -65,6 +78,17 @@ export const JobOrderDetail: React.FC = () => {
     observations: '',
   });
 
+  // Structured Evidence Collection states
+  const [evidence, setEvidence] = useState<Evidence[]>([]);
+  const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false);
+  const [editingEvidenceId, setEditingEvidenceId] = useState<string | null>(null);
+  const [newEvidenceFile, setNewEvidenceFile] = useState<File | null>(null);
+  const [newEvidenceType, setNewEvidenceType] = useState<EvidenceType>('Photo');
+  const [newEvidenceCategory, setNewEvidenceCategory] = useState<EvidenceCategory>('Equipment Photo');
+  const [newEvidenceDescription, setNewEvidenceDescription] = useState('');
+  const [newEvidenceLinkedField, setNewEvidenceLinkedField] = useState<string>('');
+  
+  // Legacy photos state (for backward compatibility during migration)
   const [photos, setPhotos] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -77,6 +101,85 @@ export const JobOrderDetail: React.FC = () => {
   const [tagInfo, setTagInfo] = React.useState<any>(null);
   const [removalDialogOpen, setRemovalDialogOpen] = useState(false);
   const [removalType, setRemovalType] = useState<'sticker' | 'tag' | null>(null);
+  
+  // Signature Collection states
+  const [signatures, setSignatures] = useState<SignatureData[]>([]);
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  const [editingSignatureId, setEditingSignatureId] = useState<string | null>(null);
+
+  // Load saved form data, evidence, and signatures when component mounts or jobOrder changes
+  React.useEffect(() => {
+    if (jobOrder) {
+      // Priority: Load from reportData if job is completed, otherwise load from draft
+      if (jobOrder.status === 'Completed' && jobOrder.reportData) {
+        // Load form data from submitted reportData
+        setFormData({
+          equipmentSerial: jobOrder.reportData.equipmentSerial || '',
+          location: jobOrder.reportData.location || jobOrder.location || '',
+          condition: jobOrder.reportData.condition || '',
+          safetyCheck: jobOrder.reportData.safetyCheck || '',
+          loadTest: jobOrder.reportData.loadTest || '',
+          visualInspection: jobOrder.reportData.visualInspection || '',
+          observations: jobOrder.reportData.observations || '',
+        });
+
+        // Load evidence metadata from reportData
+        if (jobOrder.reportData.evidence && Array.isArray(jobOrder.reportData.evidence)) {
+          const evidenceMetadata = jobOrder.reportData.evidence.map((evd: any) => ({
+            id: evd.id,
+            type: evd.type,
+            category: evd.category,
+            description: evd.description,
+            linkedField: evd.linkedField,
+            fileName: evd.fileName,
+            fileSize: evd.fileSize,
+            mimeType: evd.mimeType,
+            uploadedAt: new Date(evd.uploadedAt),
+            uploadedBy: evd.uploadedBy,
+            // Create placeholder file object (in production, files would be fetched from server)
+            file: new File([], evd.fileName, { type: evd.mimeType }),
+          }));
+          setEvidence(evidenceMetadata);
+        }
+
+        // Load signatures from job order
+        if (jobOrder.signatures && Array.isArray(jobOrder.signatures)) {
+          const loadedSignatures = jobOrder.signatures.map((sig: any) => ({
+            ...sig,
+            signedAt: new Date(sig.signedAt),
+          }));
+          setSignatures(loadedSignatures);
+        }
+      } else {
+        // Load draft data if job is not completed
+        const draft = localStorage.getItem(`draft-${jobId}`);
+        if (draft) {
+          try {
+            const { formData: savedFormData, signatures: savedSignatures, evidenceCount } = JSON.parse(draft);
+            if (savedFormData) {
+              setFormData(savedFormData);
+            }
+            if (savedSignatures) {
+              setSignatures(savedSignatures.map((sig: any) => ({
+                ...sig,
+                signedAt: new Date(sig.signedAt),
+              })));
+            }
+          } catch (e) {
+            console.error('Error loading draft:', e);
+          }
+        }
+
+        // Also load signatures from job order if they exist (for in-progress jobs)
+        if (jobOrder.signatures && Array.isArray(jobOrder.signatures)) {
+          setSignatures(jobOrder.signatures.map((sig: any) => ({
+            ...sig,
+            signedAt: new Date(sig.signedAt),
+          })));
+        }
+      }
+    }
+  }, [jobOrder, jobId]);
 
   if (!jobOrder) {
     return (
@@ -88,6 +191,92 @@ export const JobOrderDetail: React.FC = () => {
     setFormData({ ...formData, [field]: value });
   };
 
+  // Structured Evidence Collection Handlers
+  const handleEvidenceFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      setNewEvidenceFile(file);
+      setEvidenceDialogOpen(true);
+      // Auto-detect evidence type based on file type
+      if (file.type.startsWith('image/')) {
+        setNewEvidenceType('Photo');
+        setNewEvidenceCategory('Equipment Photo');
+      } else if (file.type.startsWith('video/')) {
+        setNewEvidenceType('Video');
+        setNewEvidenceCategory('General Documentation');
+      } else if (file.type === 'application/pdf') {
+        setNewEvidenceType('Document');
+        setNewEvidenceCategory('Certificate');
+      } else {
+        setNewEvidenceType('Document');
+        setNewEvidenceCategory('General Documentation');
+      }
+    }
+  };
+
+  const handleAddEvidence = () => {
+    if (!newEvidenceFile) return;
+
+    const evidenceItem: Evidence = {
+      id: editingEvidenceId || `evd-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      file: newEvidenceFile,
+      type: newEvidenceType,
+      category: newEvidenceCategory,
+      description: newEvidenceDescription || undefined,
+      linkedField: newEvidenceLinkedField || undefined,
+      uploadedAt: new Date(),
+      uploadedBy: currentUser?.id,
+      fileName: newEvidenceFile.name,
+      fileSize: newEvidenceFile.size,
+      mimeType: newEvidenceFile.type,
+    };
+
+    if (editingEvidenceId) {
+      // Update existing evidence
+      setEvidence(evidence.map(evd => evd.id === editingEvidenceId ? evidenceItem : evd));
+    } else {
+      // Add new evidence
+      setEvidence([...evidence, evidenceItem]);
+    }
+
+    // Reset form
+    setNewEvidenceFile(null);
+    setNewEvidenceType('Photo');
+    setNewEvidenceCategory('Equipment Photo');
+    setNewEvidenceDescription('');
+    setNewEvidenceLinkedField('');
+    setEditingEvidenceId(null);
+    setEvidenceDialogOpen(false);
+  };
+
+  const handleEditEvidence = (evidenceId: string) => {
+    const evd = evidence.find(e => e.id === evidenceId);
+    if (evd) {
+      setNewEvidenceFile(evd.file);
+      setNewEvidenceType(evd.type);
+      setNewEvidenceCategory(evd.category);
+      setNewEvidenceDescription(evd.description || '');
+      setNewEvidenceLinkedField(evd.linkedField || '');
+      setEditingEvidenceId(evidenceId);
+      setEvidenceDialogOpen(true);
+    }
+  };
+
+  const handleDeleteEvidence = (evidenceId: string) => {
+    setEvidence(evidence.filter(e => e.id !== evidenceId));
+  };
+
+  const handleCancelEvidenceDialog = () => {
+    setNewEvidenceFile(null);
+    setNewEvidenceType('Photo');
+    setNewEvidenceCategory('Equipment Photo');
+    setNewEvidenceDescription('');
+    setNewEvidenceLinkedField('');
+    setEditingEvidenceId(null);
+    setEvidenceDialogOpen(false);
+  };
+
+  // Legacy photo handlers (for backward compatibility)
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       setPhotos([...photos, ...Array.from(event.target.files)]);
@@ -96,6 +285,19 @@ export const JobOrderDetail: React.FC = () => {
 
   const handleRemovePhoto = (index: number) => {
     setPhotos(photos.filter((_, i) => i !== index));
+  };
+
+  // Get available form fields for linking
+  const getFormFieldsForLinking = (): Array<{ value: string; label: string }> => {
+    return [
+      { value: 'equipmentSerial', label: 'Equipment Serial Number' },
+      { value: 'location', label: 'Location' },
+      { value: 'condition', label: 'Overall Condition' },
+      { value: 'safetyCheck', label: 'Safety Check' },
+      { value: 'loadTest', label: 'Load Test' },
+      { value: 'visualInspection', label: 'Visual Inspection' },
+      { value: 'observations', label: 'Observations & Notes' },
+    ];
   };
 
   const validateForm = (): boolean => {
@@ -117,7 +319,15 @@ export const JobOrderDetail: React.FC = () => {
     
     // Save to localStorage for persistence
     setTimeout(() => {
-      localStorage.setItem(`draft-${jobId}`, JSON.stringify({ formData, photoCount: photos.length }));
+      localStorage.setItem(`draft-${jobId}`, JSON.stringify({ 
+        formData, 
+        photoCount: photos.length, // Legacy
+        evidenceCount: evidence.length, // Structured evidence count
+        signatures: signatures.map(sig => ({
+          ...sig,
+          signedAt: sig.signedAt.toISOString(),
+        })),
+      }));
       setIsSaving(false);
       setSnackbarMessage('Draft saved successfully!');
       setShowSnackbar(true);
@@ -131,17 +341,44 @@ export const JobOrderDetail: React.FC = () => {
       return;
     }
 
-    if (photos.length === 0) {
-      if (!confirm('No photos uploaded. Do you want to submit anyway?')) {
+    // Check for evidence (structured) or photos (legacy)
+    const totalEvidence = evidence.length + photos.length;
+    if (totalEvidence === 0) {
+      if (!confirm('No evidence uploaded. Do you want to submit anyway?')) {
         return;
       }
     }
 
     setIsSubmitting(true);
 
+    // Convert evidence to files for submission (backward compatibility)
+    const evidenceFiles = evidence.map(evd => evd.file);
+    const allFiles = [...evidenceFiles, ...photos];
+
     // Simulate API call
     setTimeout(() => {
-      const success = submitJobOrderReport(jobId!, formData, photos);
+      const success = submitJobOrderReport(
+        jobId!, 
+        {
+          ...formData,
+          evidence: evidence.map(evd => ({
+            id: evd.id,
+            type: evd.type,
+            category: evd.category,
+            description: evd.description,
+            linkedField: evd.linkedField,
+            fileName: evd.fileName,
+            fileSize: evd.fileSize,
+            mimeType: evd.mimeType,
+            uploadedAt: evd.uploadedAt.toISOString(),
+          })),
+        },
+        allFiles,
+        signatures.map(sig => ({
+          ...sig,
+          signedAt: sig.signedAt,
+        }))
+      );
       
       setIsSubmitting(false);
       
@@ -163,18 +400,68 @@ export const JobOrderDetail: React.FC = () => {
     }, 1500);
   };
 
+  // Signature Collection Handlers
+  const handleAddSignature = () => {
+    setEditingSignatureId(null);
+    setSignatureDialogOpen(true);
+  };
+
+  const handleEditSignature = (signatureId: string) => {
+    setEditingSignatureId(signatureId);
+    setSignatureDialogOpen(true);
+  };
+
+  const handleSaveSignature = (signature: SignatureData) => {
+    if (editingSignatureId) {
+      // Update existing signature
+      setSignatures(signatures.map(sig => 
+        sig.id === editingSignatureId ? signature : sig
+      ));
+    } else {
+      // Add new signature
+      setSignatures([...signatures, signature]);
+    }
+    setSignatureDialogOpen(false);
+    setEditingSignatureId(null);
+  };
+
+  const handleDeleteSignature = (signatureId: string) => {
+    if (confirm('Are you sure you want to delete this signature?')) {
+      setSignatures(signatures.filter(sig => sig.id !== signatureId));
+    }
+  };
+
+  const getSignatureToEdit = (): SignatureData | undefined => {
+    if (!editingSignatureId) return undefined;
+    return signatures.find(sig => sig.id === editingSignatureId);
+  };
+
   // Load draft and sticker/tag info on mount
   React.useEffect(() => {
     const draft = localStorage.getItem(`draft-${jobId}`);
     if (draft) {
       try {
-        const { formData: savedFormData } = JSON.parse(draft);
+        const { formData: savedFormData, signatures: savedSignatures } = JSON.parse(draft);
         setFormData(savedFormData);
+        if (savedSignatures) {
+          setSignatures(savedSignatures.map((sig: any) => ({
+            ...sig,
+            signedAt: new Date(sig.signedAt),
+          })));
+        }
         setSnackbarMessage('Draft loaded');
         setShowSnackbar(true);
       } catch (e) {
         console.error('Error loading draft:', e);
       }
+    }
+    
+    // Load signatures from job order if they exist
+    if (jobOrder?.signatures && jobOrder.signatures.length > 0) {
+      setSignatures(jobOrder.signatures.map((sig: any) => ({
+        ...sig,
+        signedAt: new Date(sig.signedAt),
+      })));
     }
     
     // Load sticker and tag allocation info
@@ -185,7 +472,7 @@ export const JobOrderDetail: React.FC = () => {
       const tag = getTagForJob(jobId);
       setTagInfo(tag);
     }
-  }, [jobId]);
+  }, [jobId, jobOrder]);
 
   const handleReportRemoval = (type: 'sticker' | 'tag') => {
     setRemovalType(type);
@@ -260,6 +547,23 @@ export const JobOrderDetail: React.FC = () => {
           Complete the inspection checklist and submit for approval
         </Typography>
       </Box>
+
+      {/* Revision Alert */}
+      {jobOrder.revisionComments && jobOrder.status === 'In Progress' && (
+        <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+          <Typography variant="body1" fontWeight={600} gutterBottom>
+            Revision Requested by Supervisor
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            {jobOrder.revisionComments}
+          </Typography>
+          {jobOrder.revisionRequestedAt && (
+            <Typography variant="caption" color="text.secondary">
+              Requested at: {format(new Date(jobOrder.revisionRequestedAt), 'MMMM dd, yyyy hh:mm a')}
+            </Typography>
+          )}
+        </Alert>
+      )}
 
       {/* Job Order Header */}
       <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
@@ -463,7 +767,7 @@ export const JobOrderDetail: React.FC = () => {
                 value={formData.equipmentSerial}
                 onChange={(e) => handleInputChange('equipmentSerial', e.target.value)}
                 error={formErrors.equipmentSerial}
-                helperText={formErrors.equipmentSerial ? 'This field is required' : 'Required field'}
+                helperText={formErrors.equipmentSerial ? 'This field is required' : 'Enter equipment/operator/test identifier based on service type'}
               />
             </Grid>
 
@@ -565,7 +869,7 @@ export const JobOrderDetail: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Photo Upload Section */}
+      {/* Structured Evidence Collection Section */}
       <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
         <Box
           sx={{
@@ -575,77 +879,404 @@ export const JobOrderDetail: React.FC = () => {
           }}
         />
         <CardContent sx={{ p: 4 }}>
-          <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mb: 1 }}>
-            Photo Documentation
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box>
+              <Typography variant="h6" gutterBottom fontWeight={600}>
+                Evidence Collection
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Upload photos of the equipment, inspection points, and any defects found
+              <Typography variant="body2" color="text.secondary">
+                Upload structured evidence with types, categories, and form field linking
           </Typography>
-
-          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            </Box>
             <Button 
-              variant="outlined" 
+              variant="contained"
               component="label" 
               startIcon={<UploadIcon />}
-              sx={{ px: 3 }}
+              onClick={() => {}}
+              disabled={jobOrder.status === 'Completed'}
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0e2c62 0%, #1a4288 100%)',
+                },
+              }}
             >
-              Upload Photos
-              <input type="file" hidden multiple accept="image/*" onChange={handlePhotoUpload} />
-            </Button>
-            <Button 
-              variant="outlined" 
-              component="label" 
-              startIcon={<CameraIcon />}
-              sx={{ px: 3 }}
-            >
-              Take Photo
-              <input type="file" hidden accept="image/*" capture="environment" onChange={handlePhotoUpload} />
+              Add Evidence
+              <input 
+                type="file" 
+                hidden 
+                accept="image/*,video/*,.pdf,.doc,.docx" 
+                onChange={handleEvidenceFileSelect}
+              />
             </Button>
           </Box>
 
-          {photos.length > 0 && (
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Uploaded Photos ({photos.length})
+          {evidence.length === 0 ? (
+            <Alert severity="info" sx={{ borderRadius: 2 }}>
+              <Typography variant="body2">
+                No evidence uploaded yet. Click "Add Evidence" to upload photos, documents, videos, or certificates with structured metadata.
               </Typography>
-              <List sx={{ bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                {photos.map((photo, index) => (
-                  <ListItem
-                    key={index}
-                    sx={{ 
-                      borderBottom: index < photos.length - 1 ? '1px solid' : 'none',
-                      borderColor: 'divider',
-                    }}
-                    secondaryAction={
-                      <IconButton 
-                        edge="end" 
-                        onClick={() => handleRemovePhoto(index)}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    }
-                  >
-                    <ListItemText 
-                      primary={photo.name} 
-                      secondary={`${(photo.size / 1024).toFixed(2)} KB`}
-                      primaryTypographyProps={{ fontWeight: 500 }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
+            </Alert>
+          ) : (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Evidence Items ({evidence.length})
+              </Typography>
+              
+              {/* Group evidence by category */}
+              {['Equipment Photo', 'Defect Photo', 'Before Photo', 'After Photo', 'Certificate', 'Test Result', 'Measurement', 'General Documentation', 'Other'].map((category) => {
+                const categoryEvidence = evidence.filter(evd => evd.category === category);
+                if (categoryEvidence.length === 0) return null;
+
+                return (
+                  <Box key={category} sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1, color: 'text.primary' }}>
+                      {category} ({categoryEvidence.length})
+                    </Typography>
+                    <Grid container spacing={2}>
+                      {categoryEvidence.map((evd) => (
+                        <Grid item xs={12} md={6} key={evd.id}>
+                          <Paper
+                            elevation={1}
+                            sx={{
+                              p: 2,
+                              border: '1px solid',
+                              borderColor: 'grey.300',
+                              borderRadius: 2,
+                              position: 'relative',
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="body2" fontWeight={600} noWrap>
+                                  {evd.fileName}
+                                </Typography>
+                                <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                                  <Chip 
+                                    label={evd.type} 
+                                    size="small" 
+                                    color={evd.type === 'Photo' ? 'primary' : evd.type === 'Document' ? 'secondary' : 'default'}
+                                  />
+                                  {evd.linkedField && (
+                                    <Chip 
+                                      label={`Linked: ${getFormFieldsForLinking().find(f => f.value === evd.linkedField)?.label || evd.linkedField}`}
+                                      size="small"
+              variant="outlined" 
+                                    />
+                                  )}
+                                </Box>
+                                {evd.description && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                    {evd.description}
+                                  </Typography>
+                                )}
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                  {(evd.fileSize / 1024).toFixed(2)} KB • {format(evd.uploadedAt, 'MMM dd, yyyy HH:mm')}
+                                </Typography>
+                              </Box>
+                              {jobOrder.status !== 'Completed' && (
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleEditEvidence(evd.id)}
+                                    color="primary"
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleDeleteEvidence(evd.id)}
+                                    color="error"
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              )}
+                            </Box>
+                          </Paper>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </Box>
+                );
+              })}
             </Box>
           )}
         </CardContent>
       </Card>
 
+      {/* Signature Collection Section */}
+      <Card elevation={2} sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+            color: 'white',
+            p: 2,
+          }}
+        />
+        <CardContent sx={{ p: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box>
+              <Typography variant="h6" gutterBottom fontWeight={600}>
+                Signatures (People of Sight)
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Collect signatures from people present at the site according to form requirements
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<PersonIcon />}
+              onClick={handleAddSignature}
+              disabled={jobOrder.status === 'Completed'}
+              sx={{
+                background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0e2c62 0%, #1a4288 100%)',
+                },
+              }}
+            >
+              Add Signature
+            </Button>
+          </Box>
+
+          {signatures.length === 0 ? (
+            <Alert severity="info" sx={{ borderRadius: 2 }}>
+              <Typography variant="body2">
+                No signatures collected yet. Click "Add Signature" to capture signatures from people present at the site.
+              </Typography>
+            </Alert>
+          ) : (
+            <Grid container spacing={2}>
+              {signatures.map((signature) => (
+                <Grid item xs={12} md={6} key={signature.id}>
+                  <Paper
+                    elevation={1}
+                    sx={{ 
+                      p: 2,
+                      border: '1px solid',
+                      borderColor: 'grey.300',
+                      borderRadius: 2,
+                      position: 'relative',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>
+                          {signature.signerName}
+                        </Typography>
+                        {signature.signerRole && (
+                          <Typography variant="caption" color="text.secondary">
+                            {signature.signerRole}
+                          </Typography>
+                        )}
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                          Signed: {format(signature.signedAt, 'MMM dd, yyyy HH:mm')}
+                        </Typography>
+                      </Box>
+                      {jobOrder.status !== 'Completed' && (
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      <IconButton 
+                            size="small"
+                            onClick={() => handleEditSignature(signature.id)}
+                            color="primary"
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteSignature(signature.id)}
+                        color="error"
+                      >
+                            <DeleteIcon fontSize="small" />
+                      </IconButton>
+                        </Box>
+                      )}
+                    </Box>
+                    <Box
+                      sx={{
+                        mt: 2,
+                        p: 1,
+                        bgcolor: 'grey.50',
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'grey.300',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        minHeight: '80px',
+                      }}
+                    >
+                      <img
+                        src={signature.signatureData}
+                        alt={`Signature of ${signature.signerName}`}
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '80px',
+                          objectFit: 'contain',
+                        }}
+                      />
+            </Box>
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Signature Capture Dialog */}
+      <SignatureCapture
+        open={signatureDialogOpen}
+        onClose={() => {
+          setSignatureDialogOpen(false);
+          setEditingSignatureId(null);
+        }}
+        onSave={handleSaveSignature}
+        signerName={getSignatureToEdit()?.signerName || ''}
+        signerRole={getSignatureToEdit()?.signerRole || ''}
+        title={editingSignatureId ? 'Edit Signature' : 'Capture Signature'}
+      />
+
+      {/* Evidence Collection Dialog */}
+      <Dialog 
+        open={evidenceDialogOpen} 
+        onClose={handleCancelEvidenceDialog}
+        maxWidth="sm" 
+        fullWidth
+      >
+        <DialogTitle>
+          {editingEvidenceId ? 'Edit Evidence' : 'Add Evidence'}
+        </DialogTitle>
+        <DialogContent dividers>
+          {newEvidenceFile && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                <strong>File:</strong> {newEvidenceFile.name} ({(newEvidenceFile.size / 1024).toFixed(2)} KB)
+              </Typography>
+            </Alert>
+          )}
+          
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <FormControl fullWidth required>
+                <InputLabel>Evidence Type</InputLabel>
+                <Select
+                  value={newEvidenceType}
+                  onChange={(e) => setNewEvidenceType(e.target.value as EvidenceType)}
+                  label="Evidence Type"
+                >
+                  <MenuItem value="Photo">Photo</MenuItem>
+                  <MenuItem value="Document">Document</MenuItem>
+                  <MenuItem value="Video">Video</MenuItem>
+                  <MenuItem value="Certificate">Certificate</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12}>
+              <FormControl fullWidth required>
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={newEvidenceCategory}
+                  onChange={(e) => setNewEvidenceCategory(e.target.value as EvidenceCategory)}
+                  label="Category"
+                >
+                  <MenuItem value="Equipment Photo">Equipment Photo</MenuItem>
+                  <MenuItem value="Defect Photo">Defect Photo</MenuItem>
+                  <MenuItem value="Before Photo">Before Photo</MenuItem>
+                  <MenuItem value="After Photo">After Photo</MenuItem>
+                  <MenuItem value="Certificate">Certificate</MenuItem>
+                  <MenuItem value="Test Result">Test Result</MenuItem>
+                  <MenuItem value="Measurement">Measurement</MenuItem>
+                  <MenuItem value="General Documentation">General Documentation</MenuItem>
+                  <MenuItem value="Other">Other</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Description (Optional)"
+                multiline
+                rows={3}
+                value={newEvidenceDescription}
+                onChange={(e) => setNewEvidenceDescription(e.target.value)}
+                placeholder="Add a description or notes about this evidence..."
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Link to Form Field (Optional)</InputLabel>
+                <Select
+                  value={newEvidenceLinkedField}
+                  onChange={(e) => setNewEvidenceLinkedField(e.target.value)}
+                  label="Link to Form Field (Optional)"
+                >
+                  <MenuItem value="">None</MenuItem>
+                  {getFormFieldsForLinking().map((field) => (
+                    <MenuItem key={field.value} value={field.value}>
+                      {field.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                Link this evidence to a specific form field for better organization
+              </Typography>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelEvidenceDialog} color="secondary">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAddEvidence} 
+            variant="contained" 
+            color="primary"
+            disabled={!newEvidenceFile}
+          >
+            {editingEvidenceId ? 'Update Evidence' : 'Add Evidence'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Action Buttons */}
       <Card elevation={2} sx={{ borderRadius: 3, overflow: 'hidden' }}>
         <CardContent sx={{ p: 4 }}>
+          {!hasPermission(currentUser, 'downloadReports') && jobOrder.status === 'Completed' ? (
+            <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+              This job order has been submitted and is awaiting approval. You do not have permission to modify it.
+            </Alert>
+          ) : (
           <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
             Please ensure all mandatory fields are completed before submitting for approval.
           </Alert>
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+          )}
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            {/* Download FIR/FTR PDF Button - Only show for completed jobs */}
+            {jobOrder.status === 'Completed' && getReportType(jobOrder) && (
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<PdfIcon />}
+                onClick={async () => {
+                  try {
+                    await exportReportAsPDF(jobOrder);
+                  } catch (error) {
+                    console.error('Error exporting report:', error);
+                  }
+                }}
+                sx={{ px: 3 }}
+              >
+                Download {getReportType(jobOrder)} PDF
+              </Button>
+            )}
+            {(jobOrder.status !== 'Completed' || hasPermission(currentUser, 'approveJobOrders')) && (
+              <>
             <Button 
               variant="outlined" 
               startIcon={isSaving ? <CircularProgress size={20} /> : <SaveIcon />} 
@@ -671,6 +1302,8 @@ export const JobOrderDetail: React.FC = () => {
             >
               {isSubmitting ? 'Submitting...' : 'Submit for Approval'}
             </Button>
+              </>
+            )}
           </Box>
           
           {/* Success/Error Snackbar */}

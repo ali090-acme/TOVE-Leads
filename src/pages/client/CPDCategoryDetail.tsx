@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
@@ -126,11 +126,41 @@ const mockExercises: Record<string, Exercise[]> = {
 export const CPDCategoryDetail: React.FC = () => {
   const navigate = useNavigate();
   const { categoryId } = useParams<{ categoryId: string }>();
+  const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState(0);
+
+  // Check localStorage for watched videos
+  const getWatchedStatus = (videoId: string): boolean => {
+    const stored = localStorage.getItem(`cpd-video-${categoryId}-${videoId}`);
+    return stored === 'completed';
+  };
+
+  // Merge mock data with localStorage watched status
+  const videosWithStatus = React.useMemo(() => {
+    return (mockVideos[categoryId || 'crane'] || []).map((video) => ({
+      ...video,
+      watched: video.watched || getWatchedStatus(video.id),
+    }));
+  }, [categoryId, refreshKey]);
+
+  // Listen for storage changes to refresh when video is marked complete
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setRefreshKey((prev) => prev + 1);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('cpdVideoCompleted', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('cpdVideoCompleted', handleStorageChange);
+    };
+  }, [categoryId]);
 
   const category = categoryData[categoryId || 'crane'] || { title: 'CPD Category', requiredHours: 8, completedHours: 0 };
   const progress = Math.round((category.completedHours / category.requiredHours) * 100);
-  const videos = mockVideos[categoryId || 'crane'] || [];
+  const videos = videosWithStatus;
   const quizzes = mockQuizzes[categoryId || 'crane'] || [];
   const exercises = mockExercises[categoryId || 'crane'] || [];
 
@@ -271,18 +301,36 @@ export const CPDCategoryDetail: React.FC = () => {
                           <PlayIcon sx={{ fontSize: 32, color: 'white' }} />
                         </Avatar>
                         {video.watched && (
-                          <Chip
-                            icon={<CheckIcon />}
-                            label="Watched"
-                            size="small"
+                          <Box
                             sx={{
                               position: 'absolute',
-                              top: 8,
-                              right: 8,
-                              bgcolor: 'success.main',
+                              top: 12,
+                              right: 12,
+                              bgcolor: '#1e3c72',
                               color: 'white',
+                              px: 1.5,
+                              py: 0.5,
+                              borderRadius: 2,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                              border: '1px solid rgba(255,255,255,0.2)',
                             }}
-                          />
+                          >
+                            <CheckIcon sx={{ fontSize: 14 }} />
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
+                                letterSpacing: '0.5px',
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              Watched
+                            </Typography>
+                          </Box>
                         )}
                       </Box>
                       <CardContent>

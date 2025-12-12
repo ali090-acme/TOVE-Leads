@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/context/AppContext';
 import { UserRole } from '@/types';
 import { logUserAction } from '@/utils/activityLogger';
+import { mockUsers } from '@/utils/mockData';
 
 // Hard-coded credentials for demo
 const CREDENTIALS: Record<string, { password: string; userId: string; role: UserRole }> = {
@@ -51,6 +52,14 @@ export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  
+  // Debug: Log users array on mount and when it changes
+  React.useEffect(() => {
+    console.log('🔍 Login: Users array loaded. Total users:', users.length);
+    console.log('🔍 Login: Users:', users.map(u => ({ id: u.id, name: u.name, email: u.email })));
+    const user6 = users.find(u => u.id === 'user-6');
+    console.log('🔍 Login: user-6 (admin/manager) found:', user6 ? `${user6.name} (${user6.email})` : 'NOT FOUND');
+  }, [users]);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -70,12 +79,35 @@ export const Login: React.FC = () => {
       return;
     }
     
-    // Find user by ID
-    const user = users.find(u => u.id === cred.userId);
+    // Find user by ID - CRITICAL: Must match exactly
+    let user = users.find(u => u.id === cred.userId);
     if (!user) {
-      setError('User not found');
+      console.error('❌ Login: User not found in users array. Looking for userId:', cred.userId);
+      console.error('❌ Login: Available users:', users.map(u => ({ id: u.id, name: u.name })));
+      // Try to find in mockUsers as fallback (in case localStorage is corrupted)
+      const mockUser = mockUsers.find(u => u.id === cred.userId);
+      if (mockUser) {
+        console.warn('⚠️ Login: Found user in mockUsers. localStorage users array may be corrupted.');
+        console.warn('⚠️ Login: Reloading users from mockUsers...');
+        user = mockUser;
+        // Reload users from mockUsers
+        localStorage.setItem('users', JSON.stringify(mockUsers));
+        // Force reload by refreshing the page (or we could use setUsers if available)
+        // For now, just use the mockUser
+      } else {
+        setError(`User not found. Please contact administrator. (Looking for: ${cred.userId})`);
+        return;
+      }
+    }
+    
+    // Verify user ID matches exactly
+    if (user.id !== cred.userId) {
+      console.error('❌ Login: User ID mismatch! Expected:', cred.userId, 'Got:', user.id);
+      setError('User ID mismatch. Please try again.');
       return;
     }
+    
+    console.log('✅ Login: Found user:', user.name, user.id, 'from users array');
     
     // Check portal access
     if (tabValue === 0 && cred.role !== 'client') {
@@ -88,15 +120,29 @@ export const Login: React.FC = () => {
       return;
     }
     
+    // IMPORTANT: Clear any old currentUser data first to prevent sync issues
+    // This ensures we start fresh with the new login
+    console.log('🧹 Login: Clearing old currentUser from localStorage');
+    localStorage.removeItem('currentUser');
+    
     // Set current user with correct role - this will also save to localStorage
     const userWithRole = { ...user, currentRole: cred.role };
     console.log('🔐 Login: Setting currentUser:', userWithRole.name, userWithRole.id, userWithRole.currentRole);
+    console.log('🔐 Login: User details:', { name: userWithRole.name, email: userWithRole.email, id: userWithRole.id, role: userWithRole.currentRole });
     setCurrentUser(userWithRole);
     
-    // Verify it was set
+    // Verify it was set correctly
     setTimeout(() => {
       const stored = localStorage.getItem('currentUser');
-      console.log('✅ Login: Verified currentUser in localStorage:', stored ? JSON.parse(stored)?.name : 'NOT FOUND');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        console.log('✅ Login: Verified currentUser in localStorage:', parsed?.name, parsed?.id, parsed?.currentRole);
+        if (parsed.id !== cred.userId || parsed.currentRole !== cred.role) {
+          console.error('❌ Login: MISMATCH! Expected:', cred.userId, cred.role, 'Got:', parsed.id, parsed.currentRole);
+        }
+      } else {
+        console.error('❌ Login: currentUser NOT FOUND in localStorage after setting!');
+      }
     }, 50);
     
     // Log action

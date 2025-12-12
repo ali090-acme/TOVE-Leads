@@ -11,6 +11,7 @@ export const JobOrdersList: React.FC = () => {
   const navigate = useNavigate();
   const { jobOrders, currentUser } = useAppContext();
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -19,18 +20,45 @@ export const JobOrdersList: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Filter jobs assigned to current inspector
-  const assignedJobs = jobOrders.filter((job) => {
-    // Check if assigned via assignedTo field (legacy/single assignment)
-    if (job.assignedTo === currentUser?.id || job.assignedTo === 'user-2') {
-      return true;
-    }
-    // Check if assigned via assignments object (multiple assignments support)
-    if (job.assignments?.inspector?.userId === currentUser?.id) {
-      return true;
-    }
-    return false;
-  });
+  // Listen for jobOrders updates and force refresh
+  useEffect(() => {
+    const handleUpdate = () => {
+      console.log('JobOrdersList - jobOrdersUpdated event received, refreshing...');
+      setRefreshKey(prev => prev + 1);
+    };
+    
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'jobOrders') {
+        console.log('JobOrdersList - localStorage jobOrders changed, refreshing...');
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+    
+    window.addEventListener('jobOrdersUpdated', handleUpdate);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('jobOrdersUpdated', handleUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // Filter jobs assigned to current inspector (useMemo for optimization)
+  const assignedJobs = React.useMemo(() => {
+    const filtered = jobOrders.filter((job) => {
+      // Check if assigned via assignedTo field (legacy/single assignment)
+      if (job.assignedTo === currentUser?.id || job.assignedTo === 'user-2') {
+        return true;
+      }
+      // Check if assigned via assignments object (multiple assignments support)
+      if (job.assignments?.inspector?.userId === currentUser?.id) {
+        return true;
+      }
+      return false;
+    });
+    console.log('JobOrdersList - Filtered assigned jobs:', filtered.length);
+    return filtered;
+  }, [jobOrders, currentUser?.id, refreshKey]);
 
   const columns: Column<JobOrder>[] = [
     { id: 'id', label: 'Job ID', minWidth: 120 },

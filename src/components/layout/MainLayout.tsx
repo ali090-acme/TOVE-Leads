@@ -47,7 +47,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         userRoles={userRoles}
         onRoleChange={onRoleChange}
         userName={userName}
-        notificationCount={3}
       />
       <Sidebar open={sidebarOpen} onClose={toggleSidebar} userRole={userRole} />
       <Box component="main" sx={{ flexGrow: 1, p: 3, backgroundColor: 'background.default', minHeight: '100vh' }}>
